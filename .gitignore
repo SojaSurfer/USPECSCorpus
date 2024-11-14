@@ -1,0 +1,8 @@
+# OS dependent
+*.DS_Store
+
+# data will be saved as release
+Data/*
+
+# other
+test.py
