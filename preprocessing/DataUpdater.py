@@ -8,7 +8,7 @@ import seaborn as sns
 
 
 
-class DataUpdater:
+class DataUpdater():
 
     def __init__(self):
         
