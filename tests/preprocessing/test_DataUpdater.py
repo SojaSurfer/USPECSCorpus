@@ -3,7 +3,7 @@ import os
 import unittest
 from zipfile import ZipFile
 
-from preprocessing.DataUpdater import DataUpdater
+from preprocessing.dataUpdater import DataUpdater
 
 
 def recursiveDeleteData():
