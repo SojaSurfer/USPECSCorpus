@@ -5,4 +5,11 @@
 Data/*
 
 # other
+test.txt
 test.py
+*__pycache__*
+.vscode
+.pytest_cache
+
+data/*
+tests/data/*
