@@ -12,3 +12,7 @@ Update the `data`:
 - run `preprocessing/dataUpdater.py` once. It will delete the corresponding txt files and update the graphic.
 - zip the updated `data` folder and create a new release (increment version and document the changes)
 
+
+# Analysis
+Most frequent words
+![images/mostCommonNNWords.png](images/mostCommonNNWords.png)
