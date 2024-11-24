@@ -1,15 +1,20 @@
 # OS dependent
 *.DS_Store
 
+# python bytecode
+*__pycache__*
+*.pyc
+
 # data will be saved as release
 Data/*
+data/*
+tests/data/*
 
-# other
+# testing
 test.txt
 test.py
-*__pycache__*
+
+# settings
 .vscode
 .pytest_cache
 
-data/*
-tests/data/*

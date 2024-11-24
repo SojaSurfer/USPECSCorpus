@@ -6,6 +6,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from preprocessor import *
+
 
 
 class DataUpdater():
@@ -32,7 +34,7 @@ class DataUpdater():
             raise FileNotFoundError(f'No corpus folder found. Add a corpus folder to the data folder.')
 
         self.initialCorpusSize = len(list(self.paths['corpus'].rglob('*')))
-
+        
         return None
 
 
@@ -63,6 +65,20 @@ class DataUpdater():
         self.updateCorpus()
         self.updateMetadata()
         self.updateVisualization()
+        return None
+
+
+    def updateXML(self) -> None:
+        
+        df = pd.read_csv(self.paths['csv'])
+        corpus = loadCorpusData(df, self.paths['corpus'])
+
+        treeTEI = getTEILiteStructure()
+        tree = convertToXML(corpus, treeTEI)
+
+        with open(self.paths['data'] / 'corpus.xml', 'wb') as file:
+            tree.write(file, encoding='utf-8', xml_declaration=True)
+
         return None
 
 
@@ -146,3 +162,4 @@ if __name__ == '__main__':
     updater = DataUpdater()
     
     updater.update()
+    updater.updateXML()
