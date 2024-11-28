@@ -28,6 +28,7 @@ def loadCorpusData(metadataDF:pd.DataFrame, textPath:Path) -> list[dict]:
                         'speaker': row['speaker'],
                         'title': row['title'],
                         'date': row['date'],
+                        'year': row['date'].split('-')[0],
                         'state': row['state'],
                         'city': row['city'],
                         'population': str(row['population']),
