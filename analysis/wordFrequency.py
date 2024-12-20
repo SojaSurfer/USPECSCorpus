@@ -1,3 +1,5 @@
+# needs to be modified to fit new csv format !!
+
 import re
 import string
 import sys
@@ -13,7 +15,7 @@ from tqdm import tqdm
 
 
 
-def createNetworkCsv(maxWords, root, speakers, postag:str = 'NN') -> None:
+def createNetworkCsv(maxWords:int, root, speakers:list, postag:str = 'NN') -> None:
 
     punctuations = string.punctuation + '—'
     df = pd.DataFrame(columns=['Source', 'Type', 'Target', 'Weight'])
@@ -38,7 +40,7 @@ def createNetworkCsv(maxWords, root, speakers, postag:str = 'NN') -> None:
     return None
 
 
-def plotFrequencyBySpeaker(maxWords, root, speakers):
+def plotFrequencyBySpeaker(maxWords:int, root, speakers:list) -> None:
     punctuations = string.punctuation + '—'
 
     sns.set_style('darkgrid')
@@ -78,7 +80,7 @@ def plotFrequencyBySpeaker(maxWords, root, speakers):
     return None
 
 
-def plotFrequencyByYear(maxWords, root, years):
+def plotFrequencyByYear(maxWords:int, root, years:list) -> None:
     punctuations = string.punctuation + '—'
     sns.set_style('darkgrid')
     fig, axes = plt.subplots(6, 2, figsize=(17, 11))
@@ -123,7 +125,7 @@ def plotFrequencyByYear(maxWords, root, years):
     return None
 
 
-def plotCollocations(text, pattern):
+def plotCollocations(root, text:str, pattern:str) -> None:
 
     def printMatchWithContext(text, pattern, context=20):
         matches = re.finditer(pattern, text)
@@ -138,9 +140,66 @@ def plotCollocations(text, pattern):
     
         return None
 
-    printMatchWithContext(text, pattern)
+    # printMatchWithContext(text, pattern)
+    speaker = 'Donald J. Trump (1st Term)'
+    words = root.findall(f".//tei:div[@speaker='{speaker}']//", namespaces)
+
+    bigramMeasures = collocations.BigramAssocMeasures()
+
+    finder = collocations.BigramCollocationFinder.from_words([w.text for w in words], window_size=20)
+
+    result = finder.nbest(bigramMeasures.pmi, 10)
+    print(result)
+
     return None
 
+
+def wordBefore(root):
+    import nltk
+
+    stopwords = nltk.corpus.stopwords.words('english') + list(string.punctuation) + ['this', "'s", "applause"]
+
+    speaker = 'Donald J. Trump (1st Term)'
+    words = root.findall(f".//tei:div[@speaker='{speaker}']//", namespaces)
+
+    tokens = [w.text for w in words if not w.text.lower() in stopwords and (w.get('pos').startswith('J') or w.get('pos').startswith('N'))]
+
+    target_word = 'guy'
+    preceding_words = []
+
+    for i in range(1, len(tokens)):
+        if tokens[i].lower() == target_word:
+            preceding_words.append(tokens[i - 1].lower())  # Add the word before the target word
+
+    # Count the most common preceding words
+    freq_dist = FreqDist(preceding_words)
+
+    # Display the most common words before the target word
+    most_common = freq_dist.most_common(20)  # Adjust the number as needed
+    print("Most common words before '{}':".format(target_word))
+    for word, count in most_common:
+        print(f"{word}: {count}")
+
+    plt.pie([x[1] for x in most_common], labels=[x[0] for x in most_common])
+    plt.title('Most used adjectives after "guy"')
+    plt.show()
+    plt.close()
+
+
+    tokens = [w.text for w in words if not w.text.lower() in stopwords and (w.get('pos').startswith('J'))]
+
+    # Count the most common preceding words
+    freq_dist = FreqDist(tokens)
+
+    # Display the most common words before the target word
+    most_common = freq_dist.most_common(10)  # Adjust the number as needed
+
+    plt.pie([x[1] for x in most_common], labels=[x[0] for x in most_common])
+    plt.title('Most used adjectives')
+    plt.show()
+    plt.close()
+
+    return None
 
 
 if __name__ == '__main__':
@@ -166,7 +225,7 @@ if __name__ == '__main__':
              2023,2024]
 
 
-    createNetworkCsv(maxWords, root, speakers)
+    # createNetworkCsv(maxWords, root, speakers)
 
 
     # trumpDF = df[df['speaker'] == 'Donald J. Trump (1st Term)']
@@ -176,4 +235,6 @@ if __name__ == '__main__':
     
     #     with open(f'data/corpus/{id_:04d}.txt', 'r') as f:
     #         text = f.read()
-    #     plotCollocations(text, pattern)
+    
+    # plotCollocations(root, None,None)
+    wordBefore(root)
