@@ -9,7 +9,7 @@ from plotly.subplots import make_subplots
 import pandas as pd
 import plotly.colors
 
-from changeCorpusStructure import ElectionPeriod
+from preprocessing.corpusStructure import ElectionPeriod
 
 
 
