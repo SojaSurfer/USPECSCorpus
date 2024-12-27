@@ -4,6 +4,7 @@ from time import perf_counter as pc
 import concurrent.futures
 
 import pandas as pd
+from tqdm import tqdm
 
 
 
@@ -18,6 +19,19 @@ def loadMetadata() -> pd.DataFrame:
     
     df = pd.read_excel(path)
     return df
+
+
+def concatTexts(metadataDF:pd.DataFrame) -> str:
+    root = Path('corpus') / 'texts'
+    text = ''
+
+    for index, csv in tqdm(enumerate(metadataDF['linkTexts']), ncols=80, desc="Loading txt's", total=len(metadataDF)):
+        tablePath = root / csv
+
+        with open(tablePath, 'r') as file:
+            text += file.read()
+
+    return text
 
 
 def concatTables(metadataDF:pd.DataFrame) -> pd.DataFrame:

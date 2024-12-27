@@ -8,3 +8,4 @@ seaborn>=0.10,<1.0
 gensim>=4.0,<5.0
 pyLDAvis>=3.0,<4.0
 tqdm>=4.0,<5.0
+wordcloud>=1.0,<2.0

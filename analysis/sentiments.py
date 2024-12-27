@@ -1,13 +1,16 @@
 from pathlib import Path
 import sys
+from collections import defaultdict
+
 import pandas as pd
 from tqdm import tqdm
 import plotly.express as px
 import plotly.graph_objects as go
 import plotly.colors
 from plotly.subplots import make_subplots
+import scipy.stats
 
-from analysis.analysis import loadMetadata, concatTables
+from analysis import loadMetadata, concatTables
 
 
 qualitativeColors = plotly.colors.qualitative.Plotly
@@ -118,6 +121,7 @@ def sentimentViolinPeriod(show: bool = True) -> None:
 
     for period in tqdm(periodList, ncols=80, desc='Plotting'):
         df = metadataDF[metadataDF['period'] == period]
+        sentiments = []
 
         for i, candidate in enumerate(candidateLookup[period]):
             candidateDF:pd.DataFrame = df[df['speaker'] == candidate]
@@ -150,6 +154,7 @@ def sentimentViolinPeriod(show: bool = True) -> None:
             result =  result[['date', 'TEXT_ID', 'SENTIMENT_SENTENCE']].groupby(['TEXT_ID', 'date']).agg(
                  {'SENTIMENT_SENTENCE': 'mean'})
             result.reset_index(inplace=True)
+            sentiments.append(result['SENTIMENT_SENTENCE'])
 
             result['SENTIMENT_SPEECH_STD'] = result['SENTIMENT_SENTENCE']
             scatter = result[['date', 'TEXT_ID', 'SENTIMENT_SENTENCE', 'SENTIMENT_SPEECH_STD']].groupby(
@@ -171,8 +176,10 @@ def sentimentViolinPeriod(show: bool = True) -> None:
                 line=dict(color=layout['color'][i]) 
             ),row=period, col=2)
 
+        
+        ttestResult = scipy.stats.ttest_ind(*sentiments, equal_var=True)
 
-        fig.update_xaxes(title_text=f'{candidateDF.iloc[-1]["date"].year} Election', showticklabels=False, 
+        fig.update_xaxes(title_text=formatTTest(ttestResult), showticklabels=False, 
                          row=period, col=1)
         fig.update_yaxes(title_text='Average Sentiment', 
                          range=yaxisRange,
@@ -181,9 +188,20 @@ def sentimentViolinPeriod(show: bool = True) -> None:
                          row=period, col=2)
 
 
+    fig.add_annotation(
+        text="Footnote: Independent sample t-test (Welch's t-test) used for significance testing.",
+        xref="paper",
+        yref="paper",
+        x=0.5,         # Center horizontally
+        y=-0.07,        # Place below the plot
+        showarrow=False,
+        font=dict(size=12, color="gray")
+    )
+
     fig.update_layout(
         title='Sentiment Analysis per Election',
-        legend_title='Candidates')
+        legend_title='Candidates',
+        margin=dict(t=100, b=100))
 
     if show:
         fig.show()
@@ -192,10 +210,60 @@ def sentimentViolinPeriod(show: bool = True) -> None:
     return None
 
 
+def sentimentTTestPeriod(show: bool = True) -> None:
+    metadataDF: pd.DataFrame = loadMetadata()
+
+    periodList: list = metadataDF['period'].unique().astype(int).tolist()
+    periodList.sort()
+    periodList.remove(0)
+
+    ttestResult = defaultdict(dict)
+
+    for period in tqdm(periodList, ncols=80, desc='Plotting'):
+        df = metadataDF[metadataDF['period'] == period]
+
+
+        sentiments = []
+        ttestResult[period]['speaker'] = []
+
+        for candidate in candidateLookup[period]:
+            candidateDF:pd.DataFrame = df[df['speaker'] == candidate]
+
+            result = concatTables(candidateDF)
+
+            speechesDF = result[['TEXT_ID', 'SENTIMENT_SENTENCE']].groupby('TEXT_ID').agg('mean')
+            speechesDF.rename(columns={'SENTIMENT_SENTENCE': 'SENTIMENT_SPEECH'}, inplace=True)
+
+            sentiments.append(speechesDF['SENTIMENT_SPEECH'])
+
+            ttestResult[period]['speaker'].append(candidate)
+        ttestResult[period]['ttest'] =  scipy.stats.ttest_ind(*sentiments, equal_var=False)
+
+        
+    return ttestResult
+
+
+def formatTTest(ttest:scipy.stats._stats_py.TtestResult) -> str:
+    pValue = ttest.pvalue
+    
+    if pValue < 0.0001:
+        return "p < 0.0001***"
+    elif pValue < 0.001:
+        return f"p = {pValue:.4f}***"
+    elif pValue < 0.005:
+        return f"p = {pValue:.4f}**"
+    elif pValue < 0.01:
+        return f"p = {pValue:.4f}*"
+    else:
+        return f"p = {pValue:.4f}"
+        
+
+
 
 
 if __name__ == '__main__':
 
     # sentimentBoxplotSpeaker()
     # sentimentBoxplotYear()
-    # sentimentViolinPeriod(show=True)
+    sentimentViolinPeriod(show=False)
+    # ttestResult = sentimentTTestPeriod()
