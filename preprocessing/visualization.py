@@ -41,6 +41,7 @@ class Plotter():
         self.plotSpeechesPerCandidate(show)
         self.plotSpeechesPerElection(show)
         self.plotChoropleth(show)
+        self.plotCorpusStatistics(show)
 
         return None
 
@@ -160,6 +161,54 @@ class Plotter():
             fig.write_image(self.vizPath / 'choropleth.png', height=self.height, width=self.width)
         return None
 
+
+    def plotCorpusStatistics(self, show: bool = False) -> None:
+
+        fig = make_subplots(rows=2, cols=2,
+            specs=[[{'rowspan': 2, 'type': 'scatter'}, {'type': 'indicator'}], 
+                [None, {'type': 'indicator'}]],
+
+            column_titles=['Histogram of Tokens per Speech', None],
+            column_widths=[0.85, 0.15],
+        )
+
+        fig.add_trace(go.Histogram(
+            x=self.metadataDF['tokens'],
+            name='Tokens',
+            nbinsx=40),
+            row=1, col=1)
+
+        fig.update_yaxes(range=[0,None], title='Frequency',
+                        row=1, col=1)
+        fig.update_xaxes(range=[0,None], title='Number of Tokens',
+                        row=1, col=1)
+
+
+        fig.add_trace(go.Indicator(
+            mode='number',
+            value=self.metadataDF['tokens'].sum(),
+            title='Corpus Size [Tokens]',
+            ),
+            row=1,col=2)
+        
+        fig.add_trace(go.Indicator(
+            mode='number',
+            value=len(self.metadataDF['tokens']),
+            title='Total Speeches',
+            ),
+            row=2,col=2)
+
+
+        fig.update_layout(
+            bargap=0.2,
+            title='Corpus Statistics'
+        )
+
+        if show:
+            fig.show()
+        else:
+            fig.write_image(self.vizPath / 'corpus_statistics.png', height=self.height, width=self.width)
+        return None
 
 
 

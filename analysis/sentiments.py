@@ -260,7 +260,6 @@ def formatTTest(ttest:scipy.stats._stats_py.TtestResult) -> str:
 
 
 
-
 if __name__ == '__main__':
 
     # sentimentBoxplotSpeaker()

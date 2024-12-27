@@ -9,6 +9,8 @@ import numpy as np
 
 from analysis import loadMetadata, concatTables, concatTexts
 
+
+
 def getCircularMask(grid_size:int) -> np.ndarray:
     # Create the grid
     x, y = np.ogrid[:grid_size, :grid_size]
@@ -21,6 +23,7 @@ def getCircularMask(grid_size:int) -> np.ndarray:
     mask = (x - center) ** 2 + (y - center) ** 2 > radius ** 2
     mask = 255 * mask.astype(int)
     return mask
+
 
 def createWordClouds(show: bool = False) -> None:
 
