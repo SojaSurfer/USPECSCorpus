@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 
 from wordcloud import WordCloud, STOPWORDS
-# import imageio.v3 as iio
+import imageio.v3 as iio
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,20 +25,21 @@ def getCircularMask(grid_size:int) -> np.ndarray:
     return mask
 
 
-def createWordClouds(show: bool = False) -> None:
+def wordCloudPerSpeaker(show: bool = False) -> None:
 
     path = Path('analysis') / 'wordClouds'
     metadataDF = loadMetadata()
 
 
-    mask = getCircularMask(grid_size=600)
+    # mask = getCircularMask(grid_size=600)
     stopwords = set(STOPWORDS) | {'cheers', 'applause', 'thank'}
 
-    # imagePath = '/Users/julian/Downloads/silhouette_trump.jpeg'
-    # img = iio.imread(imagePath)
+    imagePath = Path('analysis/wordClouds/Politician_top.png')
+    img = iio.imread(imagePath)
+    imgBottom = iio.imread(Path('analysis/wordClouds/Politician_bottom.png'))
 
-    # threshold = 200
-    # img = np.where(img >= threshold, 255, img)
+    threshold = 200
+    img = np.where(img >= threshold, 255, img)
 
     # alpha = np.where(img[...,0] == 255, 0, 255)
 
@@ -48,27 +49,92 @@ def createWordClouds(show: bool = False) -> None:
         texts = concatTexts(df)
 
 
-        wc = WordCloud(background_color='white', max_words=500, mask=mask, # mask=img,
-                    stopwords=stopwords, # contour_width=3, contour_color='black'
+        wc = WordCloud(background_color='white', max_words=500, mask=img,
+                    stopwords=stopwords, contour_width=5, contour_color='black',
                     )
 
         # generate word cloud
         wc.generate(texts)
         
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10,10))
+        ax1.imshow(wc)
+        ax1.axis('off')
+        ax1.set_title(f'Word Cloud {speaker}')
+        ax2.imshow(imgBottom)
+        ax2.axis('off')
+        plt.tight_layout()
+        plt.subplots_adjust(hspace=0) 
 
         if show:
-            # show
-            fig, axis = plt.subplots(figsize=(10,10))
-            axis.imshow(wc)
-            plt.axis("off")
-            axis.set_title(f'Word Cloud {speaker}')
-
-            plt.tight_layout()
             plt.show()
             plt.close()
+ 
         else:
-            wc.to_file(path / f'wordCloud_{speaker}.png')
+            plt.savefig(path / f'wordCloud_{speaker}.png')
+    
+    return None
+
+
+def wordCloudPerPeriod(show: bool = False) -> None:
+
+    path = Path('analysis') / 'wordClouds'
+    metadataDF = loadMetadata()
+
+
+    # mask = getCircularMask(grid_size=600)
+    stopwords = set(STOPWORDS) | {'cheers', 'applause', 'thank'}
+
+    imagePath = Path('analysis/wordClouds/Politician_top.png')
+    img = iio.imread(imagePath)
+    imgBottom = iio.imread(Path('analysis/wordClouds/Politician_bottom.png'))
+
+    threshold = 200
+    img = np.where(img >= threshold, 255, img)
+
+
+    for period in metadataDF['period'].unique():
+        periodDF = metadataDF[metadataDF['period'] == period]
+
+        fig, axes = plt.subplots(2, 2, figsize=(20,10))
+
+        for i, speaker in enumerate(periodDF['speaker'].unique()):
+            df = periodDF[periodDF['speaker'] == speaker]
+            texts = concatTexts(df)
+
+
+            wc = WordCloud(background_color='white', max_words=500, mask=img,
+                        stopwords=stopwords, contour_width=5, contour_color='black',
+                        )
+
+            # generate word cloud
+            wc.generate(texts)
+            
+            row, col = divmod(i, 2) 
+
+            axes[row,col].imshow(wc)
+            axes[row,col].axis('off')
+            axes[row,col].set_title(f'Word Cloud {speaker}')
+            axes[row+1,col].imshow(imgBottom)
+            axes[row+1,col].axis('off')
+
+
+        plt.tight_layout()
+        plt.subplots_adjust(hspace=0) 
+
+        if show:
+            plt.show()
+            plt.close()
+            sys.exit()
+
+        else:
+            plt.savefig(path / f'wordCloud_period{period}.png')
+        
+    return None
+
+
 
 
 if __name__ == '__main__':
-    createWordClouds()
+    # wordCloudPerPeriod(show=False)
+    wordCloudPerSpeaker(show=False)
+

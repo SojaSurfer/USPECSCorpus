@@ -161,5 +161,5 @@ if __name__ == '__main__':
     
     updater = DataUpdater()
     
-    updater.update()
-    updater.updateXML()
+    updater.updateCorpus()
+    # updater.updateXML()

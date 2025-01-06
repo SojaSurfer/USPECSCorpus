@@ -33,6 +33,7 @@ class Plotter():
             data = json.load(f)
         
         self.stateAbbrev = data['state_abbrev']
+        self.partyMembership = data['party_membership']
 
         return None
 
@@ -52,7 +53,9 @@ class Plotter():
         # self.metadataDF['date'] = self.metadataDF['date'].dt.date
         self.metadataDF['count'] = 1
 
-        speakerColorMap = {speaker: color for speaker, color in zip(self.metadataDF['speaker'].unique(), self.discreteColors)}
+        colors = {'Democrat': 'blue', 'Republican': 'red'}
+        # speakerColorMap = {speaker: color for speaker, color in zip(self.metadataDF['speaker'].unique(), self.discreteColors)}
+        speakerColorMap = {speaker: colors[self.partyMembership[speaker]] for speaker in self.metadataDF['speaker'].unique()}
 
 
         df = self.metadataDF.groupby(['party', 'speaker', pd.Grouper(key='date', freq='ME')]).agg({'count': 'sum',

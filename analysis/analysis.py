@@ -1,4 +1,6 @@
-from typing import Iterable
+import sys
+import math
+from typing import Iterable, Generator
 from pathlib import Path
 from time import perf_counter as pc
 import concurrent.futures
@@ -29,9 +31,28 @@ def concatTexts(metadataDF:pd.DataFrame) -> str:
         tablePath = root / csv
 
         with open(tablePath, 'r') as file:
-            text += file.read()
+            text += '\n' + file.read()
 
     return text
+
+
+def textGenerator(metadataDF:pd.DataFrame, clearText: bool = False) -> Generator[str, None, None]:
+    root = Path('corpus') / 'texts'
+    text = ''
+
+    for csv in metadataDF['linkTexts']:
+        tablePath = root / csv
+
+        with open(tablePath, 'r') as file:
+            text = file.read()
+
+        if clearText:
+
+            text = text.replace('\n', ' ')
+            while '  ' in text:
+                text = text.replace('  ', ' ')
+
+        yield text
 
 
 def concatTables(metadataDF:pd.DataFrame) -> pd.DataFrame:
@@ -98,9 +119,5 @@ def getSentences(df:pd.DataFrame) -> pd.DataFrame:
     grouped = df[['SENTENCE_ID', 'TOKEN']].groupby('SENTENCE_ID').agg({'TOKEN': joinFunc,
                                                                        'SENTIMENT_SENTENCE': 'unique'})
     return grouped
-
-
-
-
 
 

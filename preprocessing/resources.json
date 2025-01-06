@@ -51,5 +51,14 @@
     "West Virginia": "WV",
     "Wisconsin": "WI",
     "Wyoming": "WY"
+  },
+  "party_membership": {
+    "Barack Obama": "Democrat",
+    "John McCain": "Republican",
+    "Mitt Romney": "Republican",
+    "Hillary Clinton": "Democrat",
+    "Donald J. Trump (1st Term)": "Republican",
+    "Joseph R. Biden, Jr.": "Democrat",
+    "Kamala Harris": "Democrat"
   }
 }

@@ -1,6 +1,7 @@
 from pathlib import Path
 import sys
 from collections import defaultdict
+import math
 
 import pandas as pd
 from tqdm import tqdm
@@ -22,6 +23,7 @@ candidateLookup = {
     4: ('Joseph R. Biden, Jr.', 'Donald J. Trump (1st Term)'),
     5: ('Kamala Harris', 'Donald J. Trump (1st Term)'),
 }
+
 
 
 
@@ -100,7 +102,7 @@ def sentimentBoxplotYear(show: bool = True) -> None:
     return None
 
 
-def sentimentViolinPeriod(show: bool = True) -> None:
+def sentimentViolinPeriodComp(show: bool = True) -> None:
     metadataDF: pd.DataFrame = loadMetadata()
 
 
@@ -109,7 +111,7 @@ def sentimentViolinPeriod(show: bool = True) -> None:
     yaxisRange = (-0.5, 1)
     periodList: list = metadataDF['period'].unique().astype(int).tolist()
     periodList.sort()
-    periodList.remove(0)
+    if 0 in periodList: periodList.remove(0)
     
 
     fig = make_subplots(rows=len(periodList), cols=2,
@@ -140,6 +142,7 @@ def sentimentViolinPeriod(show: bool = True) -> None:
                 width=0.6,
                 name=candidate,
                 side=layout['side'][i], line_color=layout['color'][i],
+                points=False
             ),row=period, col=1)
 
             fig.update_layout(
@@ -178,8 +181,9 @@ def sentimentViolinPeriod(show: bool = True) -> None:
 
         
         ttestResult = scipy.stats.ttest_ind(*sentiments, equal_var=True)
+        d = cohensD(*sentiments)
 
-        fig.update_xaxes(title_text=formatTTest(ttestResult), showticklabels=False, 
+        fig.update_xaxes(title_text=formatStatistics(ttestResult, d), showticklabels=False, 
                          row=period, col=1)
         fig.update_yaxes(title_text='Average Sentiment', 
                          range=yaxisRange,
@@ -189,7 +193,7 @@ def sentimentViolinPeriod(show: bool = True) -> None:
 
 
     fig.add_annotation(
-        text="Footnote: Independent sample t-test (Welch's t-test) used for significance testing.",
+        text="Footnote: Independent sample t-test (Welch's t-test) used for significance testing, Cohen's D used for effect size.",
         xref="paper",
         yref="paper",
         x=0.5,         # Center horizontally
@@ -206,8 +210,88 @@ def sentimentViolinPeriod(show: bool = True) -> None:
     if show:
         fig.show()
     else:
-        fig.write_image(Path('corpus') / 'visualizations' / 'sentiment_period.png', height=1200, width=1800)
+        fig.write_image(Path('corpus/visualizations/sentiment_period.png'), height=1200, width=1800)
     return None
+
+
+def sentimentViolinPeriod(show: bool = True) -> None:
+    metadataDF: pd.DataFrame = loadMetadata()
+
+
+    layout = {'side': ['negative', 'positive'],
+              'color': ['blue', 'red']}
+    yaxisRange = (-0.5, 1)
+    periodList: list = metadataDF['period'].unique().astype(int).tolist()
+    periodList.sort()
+    # periodList.remove(0)
+    
+    
+    for period in tqdm(periodList, ncols=80, desc='Plotting'):
+        df = metadataDF[metadataDF['period'] == period]
+        sentiments = []
+        fig = go.Figure()
+
+        for i, candidate in enumerate(candidateLookup[period]):
+            candidateDF:pd.DataFrame = df[df['speaker'] == candidate]
+
+            result = concatTables(candidateDF)
+
+            # Violin plot
+            violin = result[['TEXT_ID', 'SENTIMENT_SENTENCE']].groupby('TEXT_ID').agg('mean')
+            violin.rename(columns={'SENTIMENT_SENTENCE': 'SENTIMENT_SPEECH'}, inplace=True)
+
+
+            fig.add_trace(go.Violin(
+                x=violin['SENTIMENT_SPEECH'] * 0,
+                y=violin['SENTIMENT_SPEECH'],
+                width=0.6,
+                name=candidate,
+                side=layout['side'][i], line_color=layout['color'][i],
+                points=False
+            ))
+
+            fig.update_layout(
+                legend=dict(
+                    orientation='h',  # Set the legend orientation to horizontal
+                    x=0.5,  # Center the legend horizontally
+                    y=1.1,  # Position the legend above the plot
+                    xanchor='center',  # Anchor the legend horizontally at the center
+                    yanchor='top',  # Anchor the legend vertically at the bottom
+                    groupclick="toggleitem"
+                )
+            )
+
+            # sentiment column
+            result['date'] = result['TEXT_ID'].apply(lambda x: candidateDF.iloc[x]['date'])
+            result['date'] = pd.to_datetime(result['date']) 
+
+            result =  result[['date', 'TEXT_ID', 'SENTIMENT_SENTENCE']].groupby(['TEXT_ID', 'date']).agg(
+                 {'SENTIMENT_SENTENCE': 'mean'})
+            result.reset_index(inplace=True)
+            sentiments.append(result['SENTIMENT_SENTENCE'])
+        
+        ttestResult = scipy.stats.ttest_ind(*sentiments, equal_var=True)
+        d = cohensD(*sentiments)
+
+
+        fig.update_xaxes(title_text=formatStatistics(ttestResult, d), showticklabels=False)
+        fig.update_yaxes(title_text='Average Sentiment', 
+                         range=yaxisRange)
+
+        fig.update_layout(
+            title=f'Sentiment Analysis for {max(result['date'].dt.year)} Election',
+            #legend_title='Candidates',
+            # margin=dict(t=100, b=100)
+            )
+
+        if show:
+            fig.show(height=600, width=600)
+        else:
+            fig.write_image(Path('analysis/sentimentAnalysis') / f'sentimentAnalysisPeriod{period}.png', 
+                            height=600, width=600)
+    
+    return None
+
 
 
 def sentimentTTestPeriod(show: bool = True) -> None:
@@ -239,24 +323,43 @@ def sentimentTTestPeriod(show: bool = True) -> None:
             ttestResult[period]['speaker'].append(candidate)
         ttestResult[period]['ttest'] =  scipy.stats.ttest_ind(*sentiments, equal_var=False)
 
+        d = cohensD(*sentiments)
+        print(d)
+        sys.exit()
+
         
     return ttestResult
 
 
-def formatTTest(ttest:scipy.stats._stats_py.TtestResult) -> str:
+def formatStatistics(ttest:scipy.stats._stats_py.TtestResult, cohensD_:float) -> str:
     pValue = ttest.pvalue
     
+    formattedD = f'd = {cohensD_:0.2f}'
+    
     if pValue < 0.0001:
-        return "p < 0.0001***"
+        return f"p < 0.0001*** | {formattedD}"
     elif pValue < 0.001:
-        return f"p = {pValue:.4f}***"
+        return f"p = {pValue:.4f}*** | {formattedD}"
     elif pValue < 0.005:
-        return f"p = {pValue:.4f}**"
+        return f"p = {pValue:.4f}** | {formattedD}"
     elif pValue < 0.01:
-        return f"p = {pValue:.4f}*"
+        return f"p = {pValue:.4f}* | {formattedD}"
     else:
-        return f"p = {pValue:.4f}"
+        return f"p = {pValue:.4f} | {formattedD}"
         
+
+def cohensD(series1:pd.Series, series2:pd.Series) -> float:
+    mean1, mean2 = series1.mean(), series2.mean()
+
+    std1, std2 = series1.std(ddof=1), series2.std(ddof=1)
+
+    len1, len2 = len(series1), len(series2)
+
+    pooledStd = math.sqrt(((len1 - 1) * std1**2 + (len2 - 1) * std2**2) / (len1 + len2 - 2))
+    
+    cohensD_ = (mean1 - mean2) / pooledStd
+
+    return abs(cohensD_)
 
 
 
@@ -265,4 +368,5 @@ if __name__ == '__main__':
     # sentimentBoxplotSpeaker()
     # sentimentBoxplotYear()
     sentimentViolinPeriod(show=False)
-    # ttestResult = sentimentTTestPeriod()
+
+    # ttestResult = sentimentTTestPeriod(show=True)

@@ -9,6 +9,7 @@
 Data/*
 data/*
 tests/data/*
+corpus/*
 
 # testing
 test.txt

@@ -1,240 +1,143 @@
-# needs to be modified to fit new csv format !!
-
 import re
 import string
 import sys
 from pathlib import Path
+from typing import Generator
+from collections import defaultdict, Counter
+import json
 
-import xml.etree.ElementTree as ET
-from matplotlib import pyplot as plt
-from nltk import FreqDist, collocations
+import spacy
 import pandas as pd
-import seaborn as sns
-from tqdm import tqdm
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+from analysis import loadMetadata, textGenerator
 
 
 
+def computePeriodMetrics(batchsize: int = 200) -> defaultdict[int, defaultdict[str, dict[str, float]]]:
+    metadataDF: pd.DataFrame = loadMetadata()
 
-def createNetworkCsv(maxWords:int, root, speakers:list, postag:str = 'NN') -> None:
+    nlpSpacy = spacy.load("en_core_web_sm", enable=['tokenizer'])
+    result = {}
 
-    punctuations = string.punctuation + '—'
-    df = pd.DataFrame(columns=['Source', 'Type', 'Target', 'Weight'])
+    for period in metadataDF['period'].unique():
+        periodDF = metadataDF[metadataDF['period'] == period]
+        result[int(period)] = defaultdict(dict)
 
-    for speaker in speakers:
+        for speaker in periodDF['speaker'].unique():
+            df = periodDF[periodDF['speaker'] == speaker]
 
-        words = root.findall(f".//tei:div[@speaker='{speaker}']//tei:w[@pos='{postag}']", namespaces)
+            generator = textGenerator(df, clearText=True)
+            ttrList = []
+            tokenCount = 0
+            speechesCount = len(df)
+            speakerTokens = []
 
-        fdist = FreqDist([word.text for word in words if not word.text in punctuations])
-        mostCommon = fdist.most_common(maxWords)
+            for text in generator:
+                doc = nlpSpacy(text)
+                tokens = [token.text.casefold() for token in doc if token.is_alpha]
+                tokenCount += len(tokens)
+                speakerTokens.extend(tokens)
+                batchGenerator = tokenBatchGenerator(tokens, batchsize=batchsize)
 
-        presidentRow = {'Source': speaker}
+                for batch in batchGenerator:
+                    ttr = len(set(batch)) / len(batch)
+                    ttrList.append(ttr)
 
-        for (word, count) in mostCommon:
-            row = presidentRow | {'Type': 'Directed', 'Target': word, 'Weight': count}
-
-            df.loc[len(df)] = row
-
-
-    df.to_csv(f'presidentsTop{maxWords}{postag}words.csv', index=False)
-
-    return None
-
-
-def plotFrequencyBySpeaker(maxWords:int, root, speakers:list) -> None:
-    punctuations = string.punctuation + '—'
-
-    sns.set_style('darkgrid')
-    fig, axes = plt.subplots(4, 2, figsize=(17, 11))
-
-    for i, ax in enumerate(axes.flatten()):
-
-        if i >= len(speakers):
-            break
-
-        speaker = speakers[i]
-
-        # get most frequent words
-        # Find all <w> tags with the attribute pos='NN' within the namespace
-        words = root.findall(f".//tei:div[@speaker='{speaker}']//tei:w[@pos='NN']", namespaces)
-
-        fdist = FreqDist([word.text for word in words if not word.text in punctuations])
-        mostCommon = fdist.most_common(maxWords)
-        words = [m[0] for m in mostCommon]
-        count = [m[1] for m in mostCommon]
+            sttr = sum(ttrList) / len(ttrList) if ttrList else 0
+            counter = Counter(speakerTokens)
+            hapaxLegomena = sum(1 for count in counter.values() if count == 1)
 
 
-        ax.plot(words, count)
+            result[period][speaker]['speechesCount'] = speechesCount
+            result[period][speaker]['STTR'] = sttr
+            result[period][speaker]['tokenCount'] = tokenCount
+            result[period][speaker]['hapaxLegomena'] = hapaxLegomena
 
-        ax.set_ylabel('Frequency')
-        ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')  # Rotate x-axis labels for better readability
-        ax.set_xlim([-0.5, maxWords-0.5])
-        ax.grid(which='major', axis='y')
-        ax.set_title(speaker)
-
-
-    plt.suptitle('Most frequent NN words')
-    plt.tight_layout()
-    plt.show()
-    plt.close()
-
-    return None
+    return result
 
 
-def plotFrequencyByYear(maxWords:int, root, years:list) -> None:
-    punctuations = string.punctuation + '—'
-    sns.set_style('darkgrid')
-    fig, axes = plt.subplots(6, 2, figsize=(17, 11))
+def tokenBatchGenerator(doc, batchsize:int = 200) -> Generator[list[str], None, None]:
+
+    spacyClass = False
+    if hasattr(doc, 'text'):
+        spacyClass = True
+
+    batchAmount = len(doc) // batchsize
+
+    for i in range(batchAmount):
+        batchSlice = slice(i * batchsize, (i+1) * batchsize)
+
+        if spacyClass:
+            yield [tk.text for tk in doc[batchSlice]]
+        else:
+            yield [tk for tk in doc[batchSlice]]
 
 
-    for i, ax in enumerate(axes.flatten()):
+def plotPeriodMetrics(metrics:dict, show: bool = False) -> None:
 
-        if i >= len(years):
-            break
+    electionYears = list(range(2008,2028,4))
 
-        year = years[i]
+    for period, pMetrics in metrics.items():
+        fig = make_subplots(rows=4, cols=2,
+            specs=[[{'type': 'indicator'}, {'type': 'indicator'}],
+                [{'type': 'indicator'}, {'type': 'indicator'}],
+                [{'type': 'indicator'}, {'type': 'indicator'}],
+                [{'type': 'indicator'}, {'type': 'indicator'}],
+                ],
+            column_titles=list(pMetrics.keys()),
+        )
 
-        # get most frequent words
-        # Find all <w> tags with the attribute pos='NN' within the namespace
-        query = f".//tei:div[@year='{year}']//tei:w[@pos='NN']"
+        for i, (speaker, sMetrics) in enumerate(pMetrics.items(), 1):
 
-        words = root.findall(query, namespaces)
-
-
-        fdist = FreqDist([word.text for word in words if not word.text in punctuations])
-        mostCommon = fdist.most_common(maxWords)
-
-
-
-        words = [m[0] for m in mostCommon]
-        count = [m[1] for m in mostCommon]
-
-
-        ax.plot(words, count)
-
-        ax.set_ylabel('Frequency')
-        ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')  # Rotate x-axis labels for better readability
-        ax.set_xlim([-0.5, maxWords-0.5])
-        ax.grid(which='major', axis='y')
-        ax.set_title(year)
-
-
-    plt.suptitle('Most frequent NN words by year')
-    plt.tight_layout()
-    plt.show()
-    plt.close()
-    return None
-
-
-def plotCollocations(root, text:str, pattern:str) -> None:
-
-    def printMatchWithContext(text, pattern, context=20):
-        matches = re.finditer(pattern, text)
-
-        for match in matches:
-            start, end = match.start(), match.end()
-            # Extract context
-            before = text[max(0, start - context):start].replace('\n', ' ')  # Up to `context` characters before
-            after = text[end:end + context].replace('\n', ' ')              # Up to `context` characters after
-            # Print the match with context
-            print(f"...{before}{match.group()}{after}...")
-    
-        return None
-
-    # printMatchWithContext(text, pattern)
-    speaker = 'Donald J. Trump (1st Term)'
-    words = root.findall(f".//tei:div[@speaker='{speaker}']//", namespaces)
-
-    bigramMeasures = collocations.BigramAssocMeasures()
-
-    finder = collocations.BigramCollocationFinder.from_words([w.text for w in words], window_size=20)
-
-    result = finder.nbest(bigramMeasures.pmi, 10)
-    print(result)
+            fig.add_trace(go.Indicator(
+                mode='number',
+                value=sMetrics['speechesCount'],
+                title='Speeches',
+                ), row=1,col=i)
+            
+            fig.add_trace(go.Indicator(
+                mode='number',
+                value=sMetrics['tokenCount'],
+                title='Tokens',
+                ), row=2,col=i)
+            
+            fig.add_trace(go.Indicator(
+                mode='number',
+                value=sMetrics['STTR'],
+                title='STTR',
+                ), row=3,col=i)
+            
+            fig.add_trace(go.Indicator(
+                mode='number',
+                value=sMetrics['hapaxLegomena'],
+                title='Hapax Legomena',
+                ), row=4,col=i)
+            
+        
+        fig.update_layout(
+            title={
+                'text': f'{electionYears[int(period)-1]} Election Speeches Metrics',
+                'font': {'size': 26},
+                'x': 0.5,
+                'xanchor': 'center',
+            }
+        )
+        if show:
+            fig.show()
+        else:
+            fig.write_image(Path(f'analysis/coreMetrics/metricsPeriod{period}.png'), height=1000, width=1000)
 
     return None
 
-
-def wordBefore(root):
-    import nltk
-
-    stopwords = nltk.corpus.stopwords.words('english') + list(string.punctuation) + ['this', "'s", "applause"]
-
-    speaker = 'Donald J. Trump (1st Term)'
-    words = root.findall(f".//tei:div[@speaker='{speaker}']//", namespaces)
-
-    tokens = [w.text for w in words if not w.text.lower() in stopwords and (w.get('pos').startswith('J') or w.get('pos').startswith('N'))]
-
-    target_word = 'guy'
-    preceding_words = []
-
-    for i in range(1, len(tokens)):
-        if tokens[i].lower() == target_word:
-            preceding_words.append(tokens[i - 1].lower())  # Add the word before the target word
-
-    # Count the most common preceding words
-    freq_dist = FreqDist(preceding_words)
-
-    # Display the most common words before the target word
-    most_common = freq_dist.most_common(20)  # Adjust the number as needed
-    print("Most common words before '{}':".format(target_word))
-    for word, count in most_common:
-        print(f"{word}: {count}")
-
-    plt.pie([x[1] for x in most_common], labels=[x[0] for x in most_common])
-    plt.title('Most used adjectives after "guy"')
-    plt.show()
-    plt.close()
-
-
-    tokens = [w.text for w in words if not w.text.lower() in stopwords and (w.get('pos').startswith('J'))]
-
-    # Count the most common preceding words
-    freq_dist = FreqDist(tokens)
-
-    # Display the most common words before the target word
-    most_common = freq_dist.most_common(10)  # Adjust the number as needed
-
-    plt.pie([x[1] for x in most_common], labels=[x[0] for x in most_common])
-    plt.title('Most used adjectives')
-    plt.show()
-    plt.close()
-
-    return None
 
 
 if __name__ == '__main__':
 
-    # Parse the XML file
-    dataPath = Path('data')
+    metrics = computePeriodMetrics()
 
-
-    tree = ET.parse(dataPath / 'corpus.xml')
-    root = tree.getroot()
-
-    namespaces = {'tei': 'http://www.tei-c.org/ns/1.0'}
-
-
-    df = pd.read_csv(dataPath / 'metadata.csv')
-    speakers = df['speaker'].unique()
-
-    maxWords = 30
-    years = [2007, 2008, 
-             2011, 2012,
-             2015, 2016,
-             2019,2020,2021,2022,
-             2023,2024]
-
-
-    # createNetworkCsv(maxWords, root, speakers)
-
-
-    # trumpDF = df[df['speaker'] == 'Donald J. Trump (1st Term)']
+    # with open('periodMetrics.json', 'r') as f:
+    #     metrics = json.load(f)
     
-    # pattern = '[Gg]uy'
-    # for id_ in trumpDF['ID'].values:
-    
-    #     with open(f'data/corpus/{id_:04d}.txt', 'r') as f:
-    #         text = f.read()
-    
-    # plotCollocations(root, None,None)
-    wordBefore(root)
+    plotPeriodMetrics(metrics)
