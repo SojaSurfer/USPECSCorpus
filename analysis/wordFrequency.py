@@ -7,12 +7,15 @@ from collections import defaultdict, Counter
 import json
 
 import spacy
+from nltk import FreqDist
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from tqdm import tqdm
 
-from analysis import loadMetadata, textGenerator
+from analysis import loadMetadata, textGenerator, concatTables
 
+periodLookup = {i+1: i * 4 + 2008 for i in range(5)}
 
 
 def computePeriodMetrics(batchsize: int = 200) -> defaultdict[int, defaultdict[str, dict[str, float]]]:
@@ -132,6 +135,52 @@ def plotPeriodMetrics(metrics:dict, show: bool = False) -> None:
     return None
 
 
+def plotWordFrequencySpeaker(amount: int = 10, show: bool = False) -> None:
+    metadataDF: pd.DataFrame = loadMetadata()
+
+    posTags = {'Nouns': ('NOUN', 'PROPN'), 'Adjectives': ('ADJ', 'ADV'), 'Verbs': ('VERB', 'AUX')}
+
+    for period in tqdm(metadataDF['period'].unique(), ncols=80, desc='Plot word frequency'):
+        periodDF = metadataDF[metadataDF['period'] == period]
+
+        for speaker in periodDF['speaker'].unique():
+            df = periodDF[periodDF['speaker'] == speaker]
+
+            tokenTbl: pd.DataFrame = concatTables(df)
+            
+            fig = make_subplots(rows=1, cols=len(posTags), specs=[[{'type': 'xy'}] * len(posTags)],
+                                column_titles=list(posTags.keys()))
+
+            for i, tags in enumerate(posTags.values(), 1):
+                posTbl = tokenTbl[tokenTbl['POS'].isin(tags)]
+                fdist = FreqDist(posTbl['LEMMA'].str.lower())
+                mostCommon = fdist.most_common(amount)
+
+                fig.add_trace(go.Bar(
+                    x=[w[0] for w in mostCommon],
+                    y=[w[1] for w in mostCommon],
+                    showlegend=False
+                ), row=1, col=i)
+            
+            fig.update_layout(title={
+                    'text': f'Word Frequency {speaker} \u2012 {periodLookup[period]} Election',
+                    'x': 0.5,
+                    'xanchor': 'center'
+                })
+
+            if show:
+                fig.show()
+            else:
+                fig.write_image(Path(f'analysis/coreMetrics/Period{period}_{speaker}.png'), height=900, width=1600)
+
+    return None
+
+
+
+import gensim.similarities
+
+gensim.similarities.Similarity()
+
 
 if __name__ == '__main__':
 
@@ -140,4 +189,5 @@ if __name__ == '__main__':
     # with open('periodMetrics.json', 'r') as f:
     #     metrics = json.load(f)
     
-    plotPeriodMetrics(metrics)
+    # plotPeriodMetrics(metrics)
+    plotWordFrequencySpeaker()
