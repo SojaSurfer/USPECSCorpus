@@ -155,6 +155,7 @@ def plotWordFrequencySpeaker(amount: int = 10, show: bool = False) -> None:
                 posTbl = tokenTbl[tokenTbl['POS'].isin(tags)]
                 fdist = FreqDist(posTbl['LEMMA'].str.lower())
                 mostCommon = fdist.most_common(amount)
+   
 
                 fig.add_trace(go.Bar(
                     x=[w[0] for w in mostCommon],

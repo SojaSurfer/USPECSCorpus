@@ -293,7 +293,6 @@ def sentimentViolinPeriod(show: bool = True) -> None:
     return None
 
 
-
 def sentimentTTestPeriod(show: bool = True) -> None:
     metadataDF: pd.DataFrame = loadMetadata()
 
@@ -329,6 +328,86 @@ def sentimentTTestPeriod(show: bool = True) -> None:
 
         
     return ttestResult
+
+
+def sentimentPerText(show: bool = True) -> None:
+    metadataDF: pd.DataFrame = loadMetadata()
+
+    root = Path('corpus') / 'tables'
+    n_quantiles = 5
+    resultDF = pd.DataFrame(columns=list(range(n_quantiles)) + ['speaker'])
+
+
+    layout = {'side': ['negative', 'positive'],
+              'color': ['blue', 'red']}
+    yaxisRange = (-0.5, 1)
+
+    if False:
+        for i, row in tqdm(metadataDF.iterrows(), ncols=80, total=len(metadataDF)):
+            tablePath = root / row['linkTables']
+
+            df = pd.read_csv(tablePath)
+
+
+            df = df[['SENTENCE_ID', 'SENTIMENT_SENTENCE']].groupby('SENTENCE_ID').agg('mean')
+
+            # Add quantile groups based on the 'index' column
+            df['quantile'] = pd.qcut(df.index, q=n_quantiles, labels=False)
+
+            # Calculate the mean sentiment for each quantile
+            quantiles = df.groupby('quantile')['SENTIMENT_SENTENCE'].mean()
+
+            # Create a new DataFrame from the quantiles and add a new column 'test'
+            quantiles_row = quantiles.T
+            quantiles_row['speaker'] = row['speaker']
+
+            # Append the new DataFrame to the result DataFrame
+            resultDF.loc[len(resultDF)] = quantiles_row
+
+
+
+        #print(resultDF)
+    
+    # resultDF = resultDF.groupby('speaker').mean().T
+    # resultDF.rename(index={'speaker': 'Quantiles'}, inplace=True)
+    # resultDF.reset_index(inplace=True)
+    # resultDF.to_csv('test2.csv')
+
+
+    resultDF = pd.read_csv('test2.csv')
+    print(resultDF)
+    print(resultDF.index, resultDF.columns)
+
+    fig = go.Figure()
+
+    # Add a line trace for each column in resultDF except 'Quantiles'
+    for column in resultDF.columns[1:]:
+        fig.add_trace(go.Scatter(
+            x=resultDF['Quantiles'] + 1,
+            y=resultDF[column],
+            mode='lines',
+            name=column
+        ))
+
+    # Update layout
+    fig.update_layout(
+        title='Mean Sentiment per Speaker in Quantiles',
+        xaxis_title='Quantiles',
+        yaxis_title='Mean Sentiment',
+        legend=dict(
+            orientation='h',  # Set the legend orientation to horizontal
+            x=0.5,  # Center the legend horizontally
+            y=1.05,  # Position the legend above the plot
+            xanchor='center',  # Anchor the legend horizontally at the center
+            yanchor='top'  # Anchor the legend vertically at the bottom
+        )
+    )
+
+    fig.show(height=800, width=1200)
+    fig.write_image(Path('analysis/sentimentAnalysis/sentimentAnalysisQuantiles.png'), 
+                    height=800, width=1200)
+    
+    return
 
 
 def formatStatistics(ttest:scipy.stats._stats_py.TtestResult, cohensD_:float) -> str:
@@ -367,6 +446,11 @@ if __name__ == '__main__':
 
     # sentimentBoxplotSpeaker()
     # sentimentBoxplotYear()
-    sentimentViolinPeriod(show=False)
+    # sentimentViolinPeriod(show=False)
+    sentimentPerText(show=True)
 
     # ttestResult = sentimentTTestPeriod(show=True)
+
+
+
+
