@@ -10,6 +10,7 @@ Data/*
 data/*
 tests/data/*
 corpus/*
+corpusBackups/*
 
 # testing
 test.txt

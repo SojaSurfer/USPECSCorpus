@@ -51,6 +51,7 @@ def computePeriodMetrics(batchsize: int = 200) -> defaultdict[int, defaultdict[s
             sttr = sum(ttrList) / len(ttrList) if ttrList else 0
             counter = Counter(speakerTokens)
             hapaxLegomena = sum(1 for count in counter.values() if count == 1)
+            print(speaker, len(counter), hapaxLegomena)
 
 
             result[period][speaker]['speechesCount'] = speechesCount
@@ -178,9 +179,6 @@ def plotWordFrequencySpeaker(amount: int = 10, show: bool = False) -> None:
 
 
 
-import gensim.similarities
-
-gensim.similarities.Similarity()
 
 
 if __name__ == '__main__':
@@ -191,4 +189,4 @@ if __name__ == '__main__':
     #     metrics = json.load(f)
     
     # plotPeriodMetrics(metrics)
-    plotWordFrequencySpeaker()
+    # plotWordFrequencySpeaker()

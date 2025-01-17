@@ -8,7 +8,6 @@ import pandas as pd
 import numpy as np
 import gensim
 from nltk import sent_tokenize
-from gensim.parsing.preprocessing import STOPWORDS as stopwords
 from gensim import models
 import pyLDAvis.gensim_models
 from tqdm import tqdm
@@ -107,11 +106,15 @@ def topicModelling(numTopics:int, stopwords:set, iterations:int = 2_000, withNGr
         # for row in rows:
         #     print(row)
 
+        wordDF = getTopicWords(lda_model)
+        wordDF.to_csv(f'analysis/topicModelling/topics/topics{speaker}.csv', index=False)
+        
 
         vis = pyLDAvis.gensim_models.prepare(lda_model, bow_corpus, dictionary=lda_model.id2word)
         if show:
-            pyLDAvis.show(vis)
-            return None
+            pass # throws error...
+            #pyLDAvis.show(vis)
+            #return None
         else:
             pyLDAvis.save_html(vis, f'lda_{speaker}.html')
     
@@ -303,18 +306,65 @@ def trainBigrams():
     return None
 
 
-if __name__ == '__main__':
+def getTopicWords(lda, numWords=10) -> pd.DataFrame:
+    df = pd.DataFrame(columns=['Topic'] + [f'Word{i:02d}' for i in range(numWords)])
+
+    for topic in lda.show_topics(numWords):
+        wordString = topic[1]
+        words = [w.split('*')[1].strip('"') for w in wordString.split(' + ')]
+        
+        df.loc[len(df)] = [topic[0]] + words
+    
+    return df
+
+
+def getStopwords() -> set:
 
     from string import punctuation
+    from gensim.parsing.preprocessing import STOPWORDS
+
     punctuation = set(punctuation)
     punctuation |= {'--', '...', r'\u2013', r'\u2014', 'dr.', '–', 'mr', 'hi', 'mr.', 'cheer', 'applause', 'sir'}
-    stopwords = stopwords | punctuation
+    stopwords = STOPWORDS | punctuation
+
+    return stopwords
+
+
+def guessTopicName() -> None:
+    from wn import Wordnet
+    import itertools
+
+    path = 'analysis/topicModelling/topics/topicsBarack Obama.csv'
+
+    wordDF = pd.read_csv(path)
+    
+    wordnet = Wordnet(lang='en')
+
+
+    print(wordDF.iloc[0,1])
+    print(wordDF.iloc[2,1])
+    synsets = wordnet.synsets(wordDF.iloc[0,1])
+    for (synsetA, synsetB) in itertools.permutations(synsets, 2):
+        common = synsetA.lowest_common_hypernyms(synsetB)
+        print(synsetA.lemmas(), synsetB.lemmas(), *[syn.lemmas() for syn in common])
+        print()
+        print(synsetA.hypernyms()[0].lemmas())
+        print(synsetB.hypernyms()[0].lemmas())
+
+
+
+if __name__ == '__main__':
+
+    stopwords = getStopwords()
 
 
     numTopics = 7  # maybe less
     # ideas: use only lowercase, remove candidate names
 
     # trainBigrams()
-    topicModelling(numTopics, stopwords, withNGrams=True)
+    # topicModelling(numTopics, stopwords, withNGrams=True, show=True)
     # authorTopicModelling(numTopics)
+
     # ensembleTopicModelling(numTopics, stopwords | set(punctuation))
+
+    guessTopicName()

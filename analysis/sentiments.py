@@ -24,7 +24,8 @@ candidateLookup = {
     5: ('Kamala Harris', 'Donald J. Trump (1st Term)'),
 }
 
-
+orderedSpeakers = ['Barack Obama', 'John McCain', 'Mitt Romney', 'Hillary Clinton', 'Donald J. Trump (1st Term)',
+                    'Joseph R. Biden, Jr.', 'Kamala Harris']
 
 
 def sentimentBoxplotSpeaker(show: bool = True) -> None:
@@ -32,7 +33,8 @@ def sentimentBoxplotSpeaker(show: bool = True) -> None:
     metadataDF: pd.DataFrame = loadMetadata()
     fig = go.Figure()
 
-    for speaker in metadataDF['speaker'].unique():
+
+    for speaker in orderedSpeakers:
         df = metadataDF[metadataDF['speaker'] == speaker]
 
         result = concatTables(df)
@@ -338,76 +340,59 @@ def sentimentPerText(show: bool = True) -> None:
     resultDF = pd.DataFrame(columns=list(range(n_quantiles)) + ['speaker'])
 
 
-    layout = {'side': ['negative', 'positive'],
-              'color': ['blue', 'red']}
-    yaxisRange = (-0.5, 1)
+    for i, row in tqdm(metadataDF.iterrows(), ncols=80, total=len(metadataDF)):
+        tablePath = root / row['linkTables']
 
-    if False:
-        for i, row in tqdm(metadataDF.iterrows(), ncols=80, total=len(metadataDF)):
-            tablePath = root / row['linkTables']
+        df = pd.read_csv(tablePath)
 
-            df = pd.read_csv(tablePath)
+        df = df[['SENTENCE_ID', 'SENTIMENT_SENTENCE']].groupby('SENTENCE_ID').agg('mean')
 
+        df['quantile'] = pd.qcut(df.index, q=n_quantiles, labels=False)
 
-            df = df[['SENTENCE_ID', 'SENTIMENT_SENTENCE']].groupby('SENTENCE_ID').agg('mean')
+        quantiles = df.groupby('quantile')['SENTIMENT_SENTENCE'].mean()
 
-            # Add quantile groups based on the 'index' column
-            df['quantile'] = pd.qcut(df.index, q=n_quantiles, labels=False)
+        quantiles_row = quantiles.T
+        quantiles_row['speaker'] = row['speaker']
 
-            # Calculate the mean sentiment for each quantile
-            quantiles = df.groupby('quantile')['SENTIMENT_SENTENCE'].mean()
-
-            # Create a new DataFrame from the quantiles and add a new column 'test'
-            quantiles_row = quantiles.T
-            quantiles_row['speaker'] = row['speaker']
-
-            # Append the new DataFrame to the result DataFrame
-            resultDF.loc[len(resultDF)] = quantiles_row
+        resultDF.loc[len(resultDF)] = quantiles_row
 
 
-
-        #print(resultDF)
-    
-    # resultDF = resultDF.groupby('speaker').mean().T
-    # resultDF.rename(index={'speaker': 'Quantiles'}, inplace=True)
-    # resultDF.reset_index(inplace=True)
-    # resultDF.to_csv('test2.csv')
+    resultDF = resultDF.groupby('speaker').mean().T
+    resultDF.rename(columns={'index': 'Quantiles'}, inplace=True)
+    resultDF.reset_index(inplace=True)
 
 
-    resultDF = pd.read_csv('test2.csv')
-    print(resultDF)
-    print(resultDF.index, resultDF.columns)
-
+    # create the figure
     fig = go.Figure()
 
-    # Add a line trace for each column in resultDF except 'Quantiles'
     for column in resultDF.columns[1:]:
         fig.add_trace(go.Scatter(
-            x=resultDF['Quantiles'] + 1,
+            x=resultDF.index + 1,
             y=resultDF[column],
             mode='lines',
             name=column
         ))
 
-    # Update layout
     fig.update_layout(
         title='Mean Sentiment per Speaker in Quantiles',
         xaxis_title='Quantiles',
         yaxis_title='Mean Sentiment',
         legend=dict(
-            orientation='h',  # Set the legend orientation to horizontal
-            x=0.5,  # Center the legend horizontally
-            y=1.05,  # Position the legend above the plot
-            xanchor='center',  # Anchor the legend horizontally at the center
-            yanchor='top'  # Anchor the legend vertically at the bottom
+            orientation='h',
+            x=0.5, 
+            y=1.05,
+            xanchor='center', 
+            yanchor='top' 
         )
     )
 
-    fig.show(height=800, width=1200)
-    fig.write_image(Path('analysis/sentimentAnalysis/sentimentAnalysisQuantiles.png'), 
-                    height=800, width=1200)
+    if show:
+        fig.show()
+    else:
+        fig.write_image(Path('analysis/sentimentAnalysis/sentimentAnalysisQuantiles.png'), 
+                        height=800, width=1200)
     
-    return
+    return None
 
 
 def formatStatistics(ttest:scipy.stats._stats_py.TtestResult, cohensD_:float) -> str:
@@ -444,12 +429,11 @@ def cohensD(series1:pd.Series, series2:pd.Series) -> float:
 
 if __name__ == '__main__':
 
-    # sentimentBoxplotSpeaker()
-    # sentimentBoxplotYear()
+    # sentimentBoxplotSpeaker(show=False)
+    # sentimentBoxplotYear(show=False)
     # sentimentViolinPeriod(show=False)
-    sentimentPerText(show=True)
+    sentimentPerText(show=False)
 
-    # ttestResult = sentimentTTestPeriod(show=True)
 
 
 

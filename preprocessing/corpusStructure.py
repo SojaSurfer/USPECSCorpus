@@ -105,6 +105,7 @@ def createTables(metadataPath:str) -> None:
     """
 
     root = Path('corpus')
+    root = Path('PresidencyScraperResult2025-01-17_Trump2')
     metadataDF = pd.read_excel(metadataPath)
 
     nlpSpacy = spacy.load("en_core_web_sm")
@@ -116,7 +117,7 @@ def createTables(metadataPath:str) -> None:
         df = pd.DataFrame(columns=cols)
         df.index.name = 'ID'
 
-        with open(root / 'texts' / row['linkText'], 'r') as file:
+        with open(root / 'texts' / row['linkTexts'], 'r') as file:
             text = file.read()
         
 
@@ -232,7 +233,8 @@ def convertToXML(corpus:list[dict], treeTEI:ET) -> ET:
 
 if __name__ == '__main__':
     
-    metadataPath = Path('corpus', 'metadata.xlsx')
+    # metadataPath = Path('corpus', 'metadata.xlsx')
+    metadataPath = Path('PresidencyScraperResult2025-01-17_Trump2/metadata.xlsx')
     
     # create all csv tables for the text files listed in the metadata excel
-    # createTables(metadataPath)
+    createTables(metadataPath)

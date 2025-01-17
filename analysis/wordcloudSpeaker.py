@@ -124,7 +124,65 @@ def wordCloudPerPeriod(show: bool = False) -> None:
         if show:
             plt.show()
             plt.close()
-            sys.exit()
+            return None
+
+        else:
+            plt.savefig(path / f'wordCloud_period{period}.png')
+        
+    return None
+
+
+def wordCloudPerPeriod2(show: bool = False) -> None:
+
+    path = Path('analysis') / 'wordClouds'
+    metadataDF = loadMetadata()
+
+    silhouettePath = Path('analysis/wordClouds/silhouettes')
+
+    # mask = getCircularMask(grid_size=600)
+    stopwords = set(STOPWORDS) | {'cheers', 'applause', 'thank'}
+    threshold = 200
+    
+
+
+    for period in metadataDF['period'].unique():
+        periodDF = metadataDF[metadataDF['period'] == period]
+
+        fig, axes = plt.subplots(1, 2, figsize=(20,10))
+
+        for i, speaker in enumerate(periodDF['speaker'].unique()):
+            df = periodDF[periodDF['speaker'] == speaker]
+            texts = concatTexts(df)
+
+            try:
+                img = iio.imread(silhouettePath / f'Silhouette {speaker}.png')
+            except FileNotFoundError:
+                img = iio.imread(silhouettePath / f'Silhouette.png')
+
+            if i == 0:
+                img = np.flip(img, axis=1)
+            img = np.where(img >= threshold, 255, img)
+
+            wc = WordCloud(background_color='white', max_words=250, mask=img,
+                        stopwords=stopwords, contour_width=5, contour_color='black',
+                        )
+
+            # generate word cloud
+            wc.generate(texts)
+            
+
+            axes[i].imshow(wc)
+            axes[i].set_title(f'Word Cloud {speaker}', fontsize=22)
+            axes[i].axis('off')
+
+
+        plt.tight_layout(pad=3)
+        # plt.subplots_adjust(hspace=0) 
+
+        if show:
+            plt.show()
+            plt.close()
+            
 
         else:
             plt.savefig(path / f'wordCloud_period{period}.png')
@@ -136,5 +194,5 @@ def wordCloudPerPeriod(show: bool = False) -> None:
 
 if __name__ == '__main__':
     # wordCloudPerPeriod(show=False)
-    wordCloudPerSpeaker(show=False)
+    wordCloudPerPeriod2(show=True)
 
