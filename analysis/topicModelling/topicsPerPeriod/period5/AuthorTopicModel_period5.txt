@@ -1,0 +1,34 @@
+--------------------------------------------------------------------------------
+Hyperparameter of AuthorTopicModel:
+Update every:    1 | Chunksize: 100
+Iterations:    500 | Passes: 30
+Alpha:        0.55 | Eta: 0.1
+
+Coherence Score c_v: 0.494773 (aim for >0.5), u_mass: -3.282729 (aim for >-2)
+Perplexity: 0.000841
+
+Topic 0 (c_v = 0.341254, u_mass = -1.345820):
+  Donald J. Trump (1st Term): 0.014368 | Kamala Harris: 0.000000
+  - drug, desk, door, caucus, name, capital, nevada, road, store, bank
+
+Topic 1 (c_v = 0.506469, u_mass = -0.953578):
+  Donald J. Trump (1st Term): 0.000000 | Kamala Harris: 0.011578
+  - walz, coach, neighbor, affordable, arizona, teacher, tim_walz, wisconsin, privilege, minnesota
+
+Topic 2 (c_v = 0.310580, u_mass = -0.287453):
+  Donald J. Trump (1st Term): 0.984656 | Kamala Harris: 0.041021
+  - cheer, pennsylvania, energy, tariff, mexico, criminal, russia, michigan, speech, soldier
+
+Topic 3 (c_v = 0.496556, u_mass = -0.919994):
+  Donald J. Trump (1st Term): 0.000000 | Kamala Harris: 0.936575
+  - issue, cooper, dignity, decision, stake, michigan, folk, body, constitution, senior
+
+Topic 4 (c_v = 0.599765, u_mass = -5.514093):
+  Donald J. Trump (1st Term): 0.000000 | Kamala Harris: 0.000000
+  - penn, pressure, permit, march, sleepy_joe, ufc, super_tuesday, willis, fani, dana
+
+Topic 5 (c_v = 0.714014, u_mass = -10.675434):
+  Donald J. Trump (1st Term): 0.000000 | Kamala Harris: 0.000000
+  - incentive, roe, architect, pause, connection, revenge, percentage, fundraiser, blessing, protector
+
+--------------------------------------------------------------------------------

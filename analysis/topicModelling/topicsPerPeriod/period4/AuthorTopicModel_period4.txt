@@ -1,0 +1,34 @@
+--------------------------------------------------------------------------------
+Hyperparameter of AuthorTopicModel:
+Update every:    1 | Chunksize: 100
+Iterations:    500 | Passes: 30
+Alpha:        0.55 | Eta: 0.1
+
+Coherence Score c_v: 0.532775 (aim for >0.5), u_mass: -6.745413 (aim for >-2)
+Perplexity: 0.000991
+
+Topic 0 (c_v = 0.664947, u_mass = -11.335572):
+  Joseph R. Biden, Jr.: 0.000000 | Donald J. Trump (1st Term): 0.000000
+  - priority, injury, volunteer, focus, transition, forgiveness, sergeant, lead, yemen, difficulty
+
+Topic 1 (c_v = 0.572716, u_mass = -7.216283):
+  Joseph R. Biden, Jr.: 0.000000 | Donald J. Trump (1st Term): 0.000000
+  - injury, sergeant, michelle, priority, volunteer, businessman, fault, lead, gratitude, devotion
+
+Topic 2 (c_v = 0.707464, u_mass = -13.007140):
+  Joseph R. Biden, Jr.: 0.000000 | Donald J. Trump (1st Term): 0.000000
+  - priority, injury, volunteer, focus, transition, forgiveness, sergeant, lead, yemen, difficulty
+
+Topic 3 (c_v = 0.254281, u_mass = -0.606205):
+  Joseph R. Biden, Jr.: 0.013659 | Donald J. Trump (1st Term): 0.811506
+  - cheer, guy, usa, citizen, border, crowd, hell, ballot, order, result
+
+Topic 4 (c_v = 0.435727, u_mass = -0.794058):
+  Joseph R. Biden, Jr.: 0.985796 | Donald J. Trump (1st Term): 0.187556
+  - vice, crisis, democracy, moment, percent, mask, pennsylvania, climate, veteran, pandemic
+
+Topic 5 (c_v = 0.561515, u_mass = -7.513220):
+  Joseph R. Biden, Jr.: 0.000000 | Donald J. Trump (1st Term): 0.000000
+  - transition, focus, priority, healing, volunteer, democracy, charity, yemen, difficulty, injury
+
+--------------------------------------------------------------------------------

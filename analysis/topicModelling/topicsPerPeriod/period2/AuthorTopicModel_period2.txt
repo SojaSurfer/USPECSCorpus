@@ -1,0 +1,34 @@
+--------------------------------------------------------------------------------
+Hyperparameter of AuthorTopicModel:
+Update every:    1 | Chunksize: 100
+Iterations:    500 | Passes: 30
+Alpha:        0.55 | Eta: 0.1
+
+Coherence Score c_v: 0.433034 (aim for >0.5), u_mass: -3.378404 (aim for >-2)
+Perplexity: 0.000889
+
+Topic 0 (c_v = 0.368755, u_mass = -0.563770):
+  Mitt Romney: 0.000000 | Barack Obama: 0.336204
+  - auto_industry, clinton, iowa, republicans, congress, building, neighbor, candidate, source, wall
+
+Topic 1 (c_v = 0.352550, u_mass = -0.985132):
+  Mitt Romney: 0.000000 | Barack Obama: 0.346399
+  - champion, fight, virginia, status_quo, clinton, spirit, wisconsin, voice, option, bet
+
+Topic 2 (c_v = 0.391278, u_mass = -0.728313):
+  Mitt Romney: 0.963426 | Barack Obama: 0.085917
+  - cheer, course, leadership, question, heart, flag, trade, enterprise, principle, right
+
+Topic 3 (c_v = 0.391157, u_mass = -0.587221):
+  Mitt Romney: 0.028917 | Barack Obama: 0.215330
+  - ohio, lobbyist, stake, street, break, opponent, research, virginia, voice, michelle
+
+Topic 4 (c_v = 0.652892, u_mass = -12.652827):
+  Mitt Romney: 0.000000 | Barack Obama: 0.000000
+  - jeep, governors, spend, jerry, grace, pace, a., spread, sleep, tom
+
+Topic 5 (c_v = 0.441571, u_mass = -4.753161):
+  Mitt Romney: 0.000000 | Barack Obama: 0.014392
+  - seat, iowa, pace, worth, businesspeople, credit_card, truck, midwest, running_mate, lady
+
+--------------------------------------------------------------------------------

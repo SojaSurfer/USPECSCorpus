@@ -1,0 +1,34 @@
+--------------------------------------------------------------------------------
+Hyperparameter of AuthorTopicModel:
+Update every:    1 | Chunksize: 100
+Iterations:    500 | Passes: 30
+Alpha:        0.55 | Eta: 0.1
+
+Coherence Score c_v: 0.474701 (aim for >0.5), u_mass: -0.943070 (aim for >-2)
+Perplexity: 0.000567
+
+Topic 0 (c_v = 0.524176, u_mass = -1.030051):
+  John McCain: 0.105507 | Barack Obama: 0.021719
+  - oil, technology, reform, market, fuel, insurance, percent, case, industry, coal
+
+Topic 1 (c_v = 0.598906, u_mass = -0.732009):
+  John McCain: 0.083240 | Barack Obama: 0.100894
+  - force, israel, threat, afghanistan, iran, troop, peace, freedom, weapon, strategy
+
+Topic 2 (c_v = 0.483131, u_mass = -0.945533):
+  John McCain: 0.019220 | Barack Obama: 0.048030
+  - politic, lobbyist, mother, race, fear, voice, dream, poverty, chance, division
+
+Topic 3 (c_v = 0.509857, u_mass = -0.711969):
+  John McCain: 0.016396 | Barack Obama: 0.276055
+  - school, college, education, teacher, oil, century, dream, kid, church, class
+
+Topic 4 (c_v = 0.472437, u_mass = -1.231449):
+  John McCain: 0.714875 | Barack Obama: 0.418304
+  - crisis, taxis, market, wall, street, opponent, congress, wealth, spending, direction
+
+Topic 5 (c_v = 0.259697, u_mass = -1.007408):
+  John McCain: 0.060762 | Barack Obama: 0.134998
+  - trade, right, idea, issue, faith, cause, school, value, clinton, promise
+
+--------------------------------------------------------------------------------

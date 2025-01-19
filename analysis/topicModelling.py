@@ -5,8 +5,10 @@ from pathlib import Path
 from collections import defaultdict, Counter
 from typing import Iterable
 import pickle
+import math
 
 import pandas as pd
+import plotly.express as px
 import numpy as np
 import gensim
 from nltk import sent_tokenize
@@ -393,28 +395,53 @@ def print_topics(phi, dictionary, top_n=10):
         print()  # Blank line between topics
 
 
-def authorTopicModelling(numTopics:int) -> None:
+def authorTopicModelling(numTopics:int, stopwords:list[str], LOAD: bool = False) -> None:
+    import plotly.express as px
+
     path = Path('corpus/tables')
     # gensim.models.AuthorTopicModel()
+
+    bigram = models.Phrases.load(str(Path('analysis/topicModelling/bigram.model')))
+    trigram = models.Phrases.load(str(Path('analysis/topicModelling/trigram.model')))
 
     metadataDF = loadMetadata()
     author2doc = defaultdict(list)
     texts = []
 
-    for speaker in metadataDF['speaker'].unique():
-        df = metadataDF[metadataDF['speaker'] == speaker]
+    if not LOAD:
+        for speaker in metadataDF['speaker'].unique():
+            df = metadataDF[metadataDF['speaker'] == speaker]
 
-        for file in df['linkTables']:
-            tablePath = path / file
-            table = pd.read_csv(tablePath)
-            tokens = filterTokens(table)
-            texts.append(tokens)
+            for file in df['linkTables']:
+                tablePath = path / file
+                table = pd.read_csv(tablePath)
+                tokensRaw = filterTokens(table, stopwords)
 
-            author2doc[speaker].append(len(texts) - 1)
+                tokens = bigram[tokensRaw]
+                tokens = trigram[tokens]
+
+                texts.append(tokens)
+                author2doc[speaker].append(len(texts) - 1)
+
+
+        with open('analysis/topicModelling/authorTexts.pkl', 'wb') as f:
+            pickle.dump(texts, f)
+        
+        with open('analysis/topicModelling/author2doc.pkl', 'wb') as f:
+            pickle.dump(author2doc, f)
+    
+    else:
+        with open('analysis/topicModelling/authorTexts.pkl', 'rb') as f:
+            texts = pickle.load(f)
+        
+        with open('analysis/topicModelling/author2doc.pkl', 'rb') as f:
+            author2doc = pickle.load(f)
 
 
     dictionary = gensim.corpora.Dictionary(texts)
+    dictionary.filter_extremes(no_below=5, no_above=0.4, keep_n=10_000)
     corpus = [dictionary.doc2bow(text) for text in texts]
+
 
 
     model = gensim.models.AuthorTopicModel(
@@ -423,33 +450,224 @@ def authorTopicModelling(numTopics:int) -> None:
         id2word=dictionary,
         author2doc=author2doc,
         update_every=1,
-        chunksize=1000,
-        iterations=1000,
-        passes=10  # Number of training passes
+        chunksize=100,
+        iterations=250,
+        passes=15,
+        alpha=0.1,
+        eta=0.01 #'auto'
     )
 
     # Step 4: Analyze Topics per Speaker
     # Get the topics associated with each speaker
-    for author in model.author2doc.keys():
-        print(f"Topics for {author}:")
-        print(model.get_author_topics(author))
-        print()
+    df = pd.DataFrame(columns=['speaker', 'topic', 'percentage'])
 
+    for author in model.author2doc.keys():
+
+        authorTopics = model.get_author_topics(author, minimum_probability=0.0)
+
+        for topic in authorTopics:
+            df.loc[len(df)] = [author, *topic]
+    
+    group = df[['topic', 'percentage']].groupby('topic').sum()
+    group.sort_values(by=['percentage'], ascending=False, inplace=True)
+
+        
+
+    df['relPercentage'] = df['percentage'] / df['speaker'].nunique()
+    fig = px.bar(df, 'topic', 'relPercentage', color='speaker', range_y=(0,1))
+    fig.show()
+
+
+    coherence_model = models.CoherenceModel(model=model, texts=texts, dictionary=dictionary, coherence='c_v')
+    print("Topics", numTopics, "Coherence Score:", coherence_model.get_coherence())
+    logPerplexity = model.log_perplexity(corpus, chunk_doc_idx=list(range(len(corpus))))
+    print(f"Model Perplexity: perplexity = {math.e ** logPerplexity}")
+    print()
+
+    for index, row in group.iterrows():
+        topics = model.show_topic(index)
+        print(f'topic {index}:')
+        print([tp[0] for tp in topics[:10]])
+        print()
+        if index == 3:
+            break
+    
     # Step 5: Examine a specific topic
     # Get the top words for topic 0
-    print("Top words for topic 0:")
-    print(model.print_topics())
-
-
+    # print("Top words for topic 0:")
+    # print(model.print_topics())
     return None
 
 
-def filterTokens(tokenTbl:pd.DataFrame, stowords:Iterable) -> list[str]:
+def authorTopicModellingPeriod(numTopics:int, stopwords:set[str]) -> None:
+    
+    path = Path('corpus/tables')
+    savepath = Path('analysis/topicModelling/topicsPerPeriod')
+    # gensim.models.AuthorTopicModel()
 
-    tokenTbl = tokenTbl[~tokenTbl['TOKEN'].isin(stopwords)]
+    bigram = models.Phrases.load(str(Path('analysis/topicModelling/bigram.model')))
+    trigram = models.Phrases.load(str(Path('analysis/topicModelling/trigram.model')))
+
+    metadataDF = loadMetadata()
+
+    extendedStopwords = {'comment', 'self', 'brown', 'lot', 'story', 'tonight', 'nomination', 'nominee', 'page', 'comment'}
+
+    for period in metadataDF['period'].unique():
+        periodDF = metadataDF[metadataDF['period'] == period]
+
+        author2doc = defaultdict(list)
+        texts = []
+
+        savepathPeriod = savepath / f'period{period}'
+        savepathPeriod.mkdir(exist_ok=True)
+
+        print(f'Period {period}, speaker {periodDF['speaker'].unique()}')
+
+        docLimit = getDocLimit(periodDF)  # balance doc amount
+
+        for speaker in periodDF['speaker'].unique():
+            df = periodDF[periodDF['speaker'] == speaker].reset_index()
+
+            speakerStopwords = set()
+            for speaker_ in periodDF['speaker'].unique():
+                speakerStopwords.add(speaker_.lower().replace(' ', '_'))
+                speakerStopwords |= set(speaker_.lower().split())
+
+            for file in df.loc[:docLimit, 'linkTables']:
+                tablePath = path / file
+                table = pd.read_csv(tablePath)
+                tokensRaw = filterTokens(table, stopwords | speakerStopwords | extendedStopwords)
+
+                tokens = bigram[tokensRaw]
+                tokens = trigram[tokens]
+
+                texts.append(tokens)
+                author2doc[speaker].append(len(texts) - 1)
+
+
+        dictionary = gensim.corpora.Dictionary(texts)
+        dictionary.filter_extremes(no_below=5, no_above=0.5, keep_n=10_000)
+        corpus = [dictionary.doc2bow(text) for text in texts]
+
+
+        c_v = 0.0
+        while c_v < 0.45:
+            model, c_v, resultString = trainAuthorTopicModel(corpus, dictionary, author2doc, texts, numTopics)
+            print(f'{c_v=}')
+
+
+        model.save(str(savepathPeriod / f'AuthorTopicModel_period{period}.model'))
+
+        with open(savepathPeriod / f'AuthorTopicModel_period{period}.txt', 'w') as f:
+            f.write(resultString)
+
+        fig = plotBarChart(model, period)
+        fig.write_image(str(savepathPeriod / f'AuthorTopicModel_period{period}.png'), height=800, width=1200)
+
+
+    # Step 5: Examine a specific topic
+    # Get the top words for topic 0
+    # print("Top words for topic 0:")
+    # print(model.print_topics())
+    return None
+
+def trainAuthorTopicModel(corpus, dictionary, author2doc, texts, numTopics) -> tuple[float, str]:
+    model = gensim.models.AuthorTopicModel(
+        corpus=corpus,
+        num_topics=numTopics,
+        id2word=dictionary,
+        author2doc=author2doc,
+        update_every=1,
+        chunksize=100,
+        iterations=500,
+        passes=30,
+        alpha=0.55,
+        eta=0.1,
+    )
+
+    # fig = plotBarChart(model, period)
+    # fig.show()
+    c_v, resultString = evaluateTopicModel(model, texts, corpus, dictionary)
+    # print(f'{c_v=}')
+    return model, c_v, resultString
+
+
+def plotBarChart(model, period):
+    
+    df = pd.DataFrame(columns=['speaker', 'topic', 'percentage'])
+
+    for author in model.author2doc.keys():
+
+        authorTopics = model.get_author_topics(author, minimum_probability=0.0)
+
+        for topic in authorTopics:
+            df.loc[len(df)] = [author, *topic]
+        
+    df['relPercentage'] = df['percentage'] / df['speaker'].nunique()
+    fig = px.bar(df, 'topic', 'relPercentage', color='speaker', range_y=(0,1), color_discrete_sequence=['red', 'blue'],
+             title=f'Topic Distribution Election Period {period}')
+
+    return fig
+
+
+def evaluateTopicModel(model:models, texts:list[str], corpus, dictionary) -> float:
+      
+    ## print statistics ##
+    result = ['-' * 80]
+    result.append('Topic Model Evaluation')
+    result = ['-' * 80]
+
+    result.append(f'Hyperparameter of {model.__class__.__qualname__}:')
+    result.append(f'Update every: {model.update_every:>4} | Chunksize: {model.chunksize}')
+    result.append(f'Iterations: {model.iterations:>6} | Passes: {model.passes}')
+    result.append(f'Alpha: {float(model.alpha[0]):>11} | Eta: {float(model.eta[0])}')
+    result.append('')
+
+    coherence_c_v = models.CoherenceModel(model=model, texts=texts, dictionary=dictionary, coherence='c_v')
+    coherence_u_mass = models.CoherenceModel(model=model, texts=texts, dictionary=dictionary, coherence='u_mass')
+    logPerplexity = model.log_perplexity(corpus, chunk_doc_idx=list(range(len(corpus))))
+
+    result.append(f'Coherence Score c_v: {coherence_c_v.get_coherence():1.6f} (aim for >0.5), u_mass: {coherence_u_mass.get_coherence():1.6f} (aim for >-2)')
+    result.append(f'Perplexity: {math.e ** logPerplexity:1.6f}')
+
+    authorTopics = defaultdict(dict)
+    for author in model.author2doc.keys():
+        topics = model.get_author_topics(author)
+        for tp in topics:
+            authorTopics[author][tp[0]] = tp[1]
+
+    for ntopic, (c_v, u_mass) in enumerate(zip(coherence_c_v.get_coherence_per_topic(), coherence_u_mass.get_coherence_per_topic())):
+
+        topics = model.show_topic(ntopic)
+        authorTopicsString = ' | '.join([f'{author}: {value.get(ntopic, 0.0):1.6f}' for author, value in authorTopics.items()])
+
+        result.append('')
+        result.append(f'Topic {ntopic} (c_v = {c_v:1.6f}, u_mass = {u_mass:1.6f}):')
+        result.append(f'  {authorTopicsString}')
+        result.append(f'  - {", ".join([tp[0] for tp in topics])}')
+    
+    result.append('')
+    result.append('-' * 80)
+
+    resultString = '\n'.join(result)
+    # print(resultString)
+    return coherence_c_v.get_coherence(), resultString
+
+
+def getDocLimit(periodDF:pd.DataFrame) -> int:
+    docLength = []
+    for speaker in periodDF['speaker'].unique():
+        docLength.append(len(periodDF[periodDF['speaker'] == speaker]))
+    
+    return min(docLength)
+
+
+def filterTokens(tokenTbl:pd.DataFrame, stopwords:Iterable) -> list[str]:
+
+    tokenTbl = tokenTbl[~tokenTbl['TOKEN'].str.lower().isin(stopwords)]
     tokenTbl = tokenTbl[tokenTbl['POS'].isin(['NOUN', 'PROPN'])]  # use only nouns
 
-    return tokenTbl['LEMMA'].tolist()
+    return tokenTbl['LEMMA'].str.lower().tolist()
 
 
 def trainBigrams(stopwords:Iterable, save: bool = False, analyze: bool = False) -> None:
@@ -543,7 +761,7 @@ def getStopwords() -> set[str]:
 
     punctuation = set(punctuation)
     punctuation |= {'--', '...', r'\u2013', r'\u2014', 'dr.', '–', 'mr', 'hi', 'mr.', 'cheer', 'applause', 'sir', 'laughter',
-                    'audience', 'boo', 'booo', 'laughs', '--audience'}
+                    'audience', 'boo', 'booo', 'laughs', '--audience', 'â€'}
     stopwords = STOPWORDS | punctuation
 
     return stopwords
@@ -573,18 +791,16 @@ def guessTopicName() -> None:
 
 
 
-
-
 if __name__ == '__main__':
 
-    numTopics = 10  # maybe less
+    numTopics = 6  # maybe less
     stopwords = getStopwords()
-
 
     # trainBigrams(stopwords, analyze=True, save=False)
     # topicModellingPerSpeaker(numTopics, stopwords)
-    topicModellingPerPeriod2(numTopics, stopwords, LOAD=True)
-    # authorTopicModelling(numTopics)
+    # topicModellingPerPeriod2(numTopics, stopwords, LOAD=True)
+    # authorTopicModelling(numTopics, stopwords, LOAD=False)
+    authorTopicModellingPeriod(numTopics, stopwords)
 
     # ensembleTopicModelling(numTopics)
 

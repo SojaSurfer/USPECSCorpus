@@ -1,0 +1,34 @@
+--------------------------------------------------------------------------------
+Hyperparameter of AuthorTopicModel:
+Update every:    1 | Chunksize: 100
+Iterations:    500 | Passes: 30
+Alpha:        0.55 | Eta: 0.1
+
+Coherence Score c_v: 0.473287 (aim for >0.5), u_mass: -2.793476 (aim for >-2)
+Perplexity: 0.000753
+
+Topic 0 (c_v = 0.627827, u_mass = -0.548428):
+  Hillary Clinton: 0.000000 | Donald J. Trump (1st Term): 0.637547
+  - border, administration, crime, regulation, medium, donor, obamacare, email, drug, mexico
+
+Topic 1 (c_v = 0.674347, u_mass = -0.737631):
+  Hillary Clinton: 0.055949 | Donald J. Trump (1st Term): 0.082507
+  - isis, iran, attack, terrorism, iraq, question, israel, syria, russia, party
+
+Topic 2 (c_v = 0.606114, u_mass = -10.591546):
+  Hillary Clinton: 0.000000 | Donald J. Trump (1st Term): 0.000000
+  - carrier, ethic, electric, request, ronald_reagan, devaluation, computer, social_security, immunity, verdict
+
+Topic 3 (c_v = 0.343695, u_mass = -1.005138):
+  Hillary Clinton: 0.419559 | Donald J. Trump (1st Term): 0.062380
+  - student, mother, new_york, wage, new_hampshire, door, university, age, reform, childcare
+
+Topic 4 (c_v = 0.247673, u_mass = -1.144573):
+  Hillary Clinton: 0.521664 | Donald J. Trump (1st Term): 0.160324
+  - question, health, debate, girl, folk, night, ohio, act, line, investment
+
+Topic 5 (c_v = 0.340067, u_mass = -2.733540):
+  Hillary Clinton: 0.000000 | Donald J. Trump (1st Term): 0.051063
+  - new_york_times, debate, china, shooter, quote, estate, television, box, firm, hell
+
+--------------------------------------------------------------------------------
