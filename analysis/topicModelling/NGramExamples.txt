@@ -1,0 +1,45 @@
+Found 139 Bigram, 20 most frequent:
+ - new_york             -  687
+ - white_house          -  673
+ - north_carolina       -  566
+ - social_security      -  531
+ - john_mccain          -  486
+ - law_enforcement      -  485
+ - supreme_court        -  449
+ - middle_east          -  448
+ - new_hampshire        -  410
+ - kamala_harris        -  378
+ - auto_industry        -  364
+ - george_bush          -  273
+ - second_amendment     -  257
+ - south_carolina       -  232
+ - commander_chief      -  227
+ - al_qaeda             -  218
+ - attorney_general     -  216
+ - police_officer       -  205
+ - road_bridge          -  194
+ - main_street          -  186
+
+
+Found 28 Trigram, 20 most frequent:
+ - social_security_medicare -  127
+ - new_york_times       -  101
+ - supreme_court_justice -   76
+ - door_phone_call      -   65
+ - trans_pacific_partnership -   65
+ - main_street_wall     -   56
+ - kim_jong_un          -   53
+ - music_lee_greenwood  -   46
+ - exception_rape_incest -   42
+ - sleepy_joe_biden     -   42
+ - protection_roe_wade  -   35
+ - attorney_general_california -   34
+ - supreme_court_constitution -   33
+ - sovereignty_golan_heights -   32
+ - mr_acevedo_interpreting -   32
+ - fannie_mae_freddie_mac -   30
+ - civil_rights_movement -   29
+ - saudi_arabia_russia  -   28
+ - tower_new_york       -   28
+ - fight_al_qaeda       -   26
+

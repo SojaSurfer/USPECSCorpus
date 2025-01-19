@@ -286,12 +286,23 @@ def sentimentViolinPeriod(show: bool = True) -> None:
             # margin=dict(t=100, b=100)
             )
 
+        fig.add_annotation(
+            text="Independent sample t-test (Welch's t-test) used for significance testing, Cohen's D used for effect size.",
+            xref="paper",
+            yref="paper",
+            x=0.5,         # Center horizontally
+            y=-0.15,        # Place below the plot
+            showarrow=False,
+            font=dict(size=9, color="gray")
+        )
+
+
         if show:
             fig.show(height=600, width=600)
         else:
             fig.write_image(Path('analysis/sentimentAnalysis') / f'sentimentAnalysisPeriod{period}.png', 
                             height=600, width=600)
-    
+
     return None
 
 
@@ -426,13 +437,56 @@ def cohensD(series1:pd.Series, series2:pd.Series) -> float:
     return abs(cohensD_)
 
 
+def sentimentXAI():
+    from nltk.sentiment import SentimentIntensityAnalyzer
+    from nltk import sent_tokenize
+    import shap
+    import numpy as np
+
+    def sentiment_wrapper(sentences):
+        return np.array([sia.polarity_scores(sentence)['compound'] for sentence in sentences])
+
+
+    metadataDF: pd.DataFrame = loadMetadata()
+    root = Path('corpus')
+    shap_html_path = "shap_text_output.html"
+    sia = SentimentIntensityAnalyzer()
+    
+
+    masker = shap.maskers.Text()
+    explainer = shap.Explainer(sentiment_wrapper, masker=masker)
+
+
+    with open(root / 'texts' / metadataDF.at[100, 'linkTexts'], 'r') as file:
+        text = file.read()
+    
+    sentences = sent_tokenize(text, language='english')
+    
+    cleanSentences = []
+    for sentence in sentences:
+        cleanSentences.append(sentence.replace('\n', '').replace('\r', '').replace('\t', ''))
+
+    # SHAP
+    shap_values = explainer(cleanSentences)
+    shap.initjs()
+
+    with open(shap_html_path, "w") as f:
+        shap.plots.text(shap_values, display=False)  # Disable immediate display
+        f.write(shap.getjs())  # Include JavaScript
+        f.write(str(shap.plots.text(shap_values, display=False)))
+
+    return None
+
+
+
 
 if __name__ == '__main__':
 
     # sentimentBoxplotSpeaker(show=False)
     # sentimentBoxplotYear(show=False)
-    # sentimentViolinPeriod(show=False)
-    sentimentPerText(show=False)
+    sentimentViolinPeriod(show=False)
+    # sentimentPerText(show=False)
+    # sentimentXAI()
 
 
 

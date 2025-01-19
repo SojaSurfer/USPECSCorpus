@@ -1,8 +1,10 @@
+import re
 import sys
-from string import punctuation
+import time
 from pathlib import Path
-from collections import defaultdict
+from collections import defaultdict, Counter
 from typing import Iterable
+import pickle
 
 import pandas as pd
 import numpy as np
@@ -42,8 +44,7 @@ def analyse_topics(ldamodel, corpus, text) -> tuple[dict, ...]:
     return main_topic, percentage, keywords, text_snippets
 
 
-def topicModelling(numTopics:int, stopwords:set, iterations:int = 2_000, withNGrams: bool = False,
-                   show: bool = False) -> None:
+def topicModelling(numTopics:int, stopwords:set, iterations:int = 2_000, withNGrams: bool = False) -> None:
 
     metadataDF: pd.DataFrame = loadMetadata()
 
@@ -73,22 +74,25 @@ def topicModelling(numTopics:int, stopwords:set, iterations:int = 2_000, withNGr
 
         ## topic modelling
         dictionary = gensim.corpora.Dictionary(documents)
-        dictionary.filter_extremes(no_below=10, no_above=0.5, keep_n = 10000)
+        dictionary.filter_extremes(no_below=10, no_above=0.5, keep_n = 10_000)
 
         bow_corpus = [dictionary.doc2bow(doc) for doc in tqdm(documents, ncols=80)]
 
 
         # run LDA
+        st = time.perf_counter()
         lda_model = gensim.models.ldamodel.LdaModel(corpus=bow_corpus,
                                                     id2word=dictionary,
                                                     num_topics=numTopics,
                                                     random_state=100,
                                                     update_every=1,
-                                                    chunksize=1000,
+                                                    chunksize=1_000,
                                                     passes=10,
                                                     alpha='symmetric',
                                                     iterations=iterations,
                                                     per_word_topics=True)
+
+        print(f'duration: {time.perf_counter() - st:.4f}')
         
 
         # analyze topics - print out main topic for each document in the collection
@@ -106,18 +110,225 @@ def topicModelling(numTopics:int, stopwords:set, iterations:int = 2_000, withNGr
         # for row in rows:
         #     print(row)
 
-        wordDF = getTopicWords(lda_model)
-        wordDF.to_csv(f'analysis/topicModelling/topics/topics{speaker}.csv', index=False)
+        # wordDF = getTopicWords(lda_model)
+        # wordDF.to_csv(f'analysis/topicModelling/topics/topics{speaker}.csv', index=False)
         
 
         vis = pyLDAvis.gensim_models.prepare(lda_model, bow_corpus, dictionary=lda_model.id2word)
-        if show:
-            pass # throws error...
-            #pyLDAvis.show(vis)
-            #return None
-        else:
-            pyLDAvis.save_html(vis, f'lda_{speaker}.html')
+        pyLDAvis.save_html(vis, f'lda_{speaker}.html')
     
+    return None
+
+
+def topicModellingPerSpeaker(numTopics: int, stopwords: set, iterations: int = 2_000) -> None:
+    metadataDF: pd.DataFrame = loadMetadata()
+
+    bigram = models.Phrases.load(str(Path('analysis/topicModelling/bigram.model')))
+    trigram = models.Phrases.load(str(Path('analysis/topicModelling/trigram.model')))
+
+    # Combine all documents for all speakers
+    combined_documents = []
+    speakerDocuments = {}
+    MAX_TOKENS = 33_800
+
+    for speaker in metadataDF['speaker'].unique():
+        df = metadataDF[metadataDF['speaker'] == speaker]
+        tokenTbl: pd.DataFrame = concatTables(df)
+
+        tokenTbl['LEMMA'] = tokenTbl['LEMMA'].str.lower()
+        tokenTbl = tokenTbl[~tokenTbl['LEMMA'].isin(stopwords)]
+        tokenTbl = tokenTbl[tokenTbl['POS'].isin(['NOUN', 'PROPN'])]  # use only nouns
+        tokenTbl = tokenTbl[['TEXT_ID', 'LEMMA']]
+        tokenTbl.reset_index(inplace=True)
+
+        print(speaker, len(tokenTbl), tokenTbl['TEXT_ID'].max())
+
+        documents = tokenTbl.loc[:MAX_TOKENS, :].groupby('TEXT_ID')['LEMMA'].apply(list).values
+
+        documents = bigram[documents]
+        documents = trigram[documents]
+
+        combined_documents.extend(documents)
+        speakerDocuments[speaker] = documents
+
+
+    # topic modelling
+    dictionary = gensim.corpora.Dictionary(combined_documents)
+    dictionary.filter_extremes(no_below=10, no_above=0.5, keep_n=10_000)
+    bow_corpus = [dictionary.doc2bow(doc) for doc in tqdm(combined_documents, ncols=80)]
+
+    # run LDA
+    lda_model = models.ldamodel.LdaModel(corpus=bow_corpus,
+                                        id2word=dictionary,
+                                        num_topics=numTopics,
+                                        random_state=100,
+                                        update_every=1,
+                                        chunksize=200, #1000,
+                                        passes=20, #10,
+                                        alpha='auto', #'symmetric',
+                                        iterations=500, #iterations,
+                                        per_word_topics=True)
+
+
+    # Visualize topics for each speaker
+    for speaker in metadataDF['speaker'].unique():
+
+        speaker_bow_corpus = [dictionary.doc2bow(doc) for doc in speakerDocuments[speaker]]
+        vis = pyLDAvis.gensim_models.prepare(lda_model, speaker_bow_corpus, dictionary=lda_model.id2word, mds='tsne')
+        pyLDAvis.save_html(vis, f'_lda_{speaker}.html')
+
+    return None
+
+
+def topicModellingPerPeriod(numTopics: int, stopwords: set, iterations: int = 2_000) -> None:
+    metadataDF: pd.DataFrame = loadMetadata()
+
+    bigram = models.Phrases.load(str(Path('analysis/topicModelling/bigram.model')))
+    trigram = models.Phrases.load(str(Path('analysis/topicModelling/trigram.model')))
+
+    # Combine all documents for all speakers
+    MAX_TOKENS = 33_800
+
+    for period in metadataDF['period'].unique():
+        combinedDocuments = []
+        speakerDocuments = {}
+
+        periodDF = metadataDF[metadataDF['period'] == period]
+
+        for speaker in periodDF['speaker'].unique():
+
+            df = periodDF[periodDF['speaker'] == speaker]
+            tokenTbl: pd.DataFrame = concatTables(df)
+
+            tokenTbl['LEMMA'] = tokenTbl['LEMMA'].str.lower()
+            tokenTbl = tokenTbl[~tokenTbl['LEMMA'].isin(stopwords)]
+            tokenTbl = tokenTbl[tokenTbl['POS'].isin(['NOUN', 'PROPN'])]  # use only nouns
+            tokenTbl = tokenTbl[['TEXT_ID', 'LEMMA']]
+            tokenTbl.reset_index(inplace=True)
+
+            documents = tokenTbl.loc[:MAX_TOKENS, :].groupby('TEXT_ID')['LEMMA'].apply(list).values
+
+            documents = bigram[documents]
+            documents = trigram[documents]
+
+            combinedDocuments.extend(documents)
+            speakerDocuments[speaker] = documents
+
+
+        # topic modelling
+        dictionary = gensim.corpora.Dictionary(combinedDocuments)
+        dictionary.filter_extremes(no_below=10, no_above=0.5, keep_n=10_000)
+        bow_corpus = [dictionary.doc2bow(doc) for doc in tqdm(combinedDocuments, ncols=80)]
+
+        # run LDA
+        lda_model = models.ldamodel.LdaModel(corpus=bow_corpus,
+                                            id2word=dictionary,
+                                            num_topics=numTopics,
+                                            random_state=100,
+                                            update_every=1,
+                                            chunksize=200, #1000,
+                                            passes=20, #10,
+                                            alpha='auto', #'symmetric',
+                                            iterations=500, #iterations,
+                                            per_word_topics=True)
+
+
+        # Visualize topics for each speaker
+        for speaker in periodDF['speaker'].unique():
+
+            speaker_bow_corpus = [dictionary.doc2bow(doc) for doc in speakerDocuments[speaker]]
+            vis = pyLDAvis.gensim_models.prepare(lda_model, speaker_bow_corpus, dictionary=lda_model.id2word, mds='tsne')
+            pyLDAvis.save_html(vis, f'LDA_{period}_{speaker}.html')
+
+    return None
+
+
+def topicModellingPerPeriod2(numTopics: int, stopwords: set, iterations: int = 2_000, LOAD: bool = True) -> None:
+    metadataDF: pd.DataFrame = loadMetadata()
+
+    bigram = models.Phrases.load(str(Path('analysis/topicModelling/bigram.model')))
+    trigram = models.Phrases.load(str(Path('analysis/topicModelling/trigram.model')))
+
+    # Combine all documents for all speakers
+    MAX_TOKENS = 33_800
+    
+    # Train a global LDA model across all periods and speakers
+
+    if not LOAD:
+        global_combined_documents = []
+        global_speaker_documents = {}
+
+        for period in metadataDF['period'].unique():
+            periodDF = metadataDF[metadataDF['period'] == period]
+            for speaker in periodDF['speaker'].unique():
+                df = periodDF[periodDF['speaker'] == speaker]
+                tokenTbl: pd.DataFrame = concatTables(df)
+
+                tokenTbl['LEMMA'] = tokenTbl['LEMMA'].str.lower()
+                tokenTbl = tokenTbl[~tokenTbl['LEMMA'].isin(stopwords)]
+                tokenTbl = tokenTbl[tokenTbl['POS'].isin(['NOUN', 'PROPN'])]
+                tokenTbl = tokenTbl[['TEXT_ID', 'LEMMA']]
+                tokenTbl.reset_index(inplace=True)
+
+                documents = tokenTbl.loc[:MAX_TOKENS, :].groupby('TEXT_ID')['LEMMA'].apply(list).values
+                documents = bigram[documents]
+                documents = trigram[documents]
+
+                global_combined_documents.extend(documents)
+                global_speaker_documents[(period, speaker)] = documents
+
+        with open('analysis/topicModelling/global_speaker_documents.pkl', 'wb') as f:
+            pickle.dump(global_speaker_documents, f)
+
+        with open('analysis/topicModelling/global_combined_documents.pkl', 'wb') as f:
+            pickle.dump(global_combined_documents, f)
+
+    else:
+        with open('analysis/topicModelling/global_speaker_documents.pkl', 'rb') as f:
+            global_speaker_documents = pickle.load(f)
+        with open('analysis/topicModelling/global_combined_documents.pkl', 'rb') as f:
+            global_combined_documents = pickle.load(f)
+
+
+    # Train the global LDA model
+    dictionary = gensim.corpora.Dictionary(global_combined_documents)
+    dictionary.filter_extremes(no_below=10, no_above=0.5, keep_n=10_000)
+    bow_corpus = [dictionary.doc2bow(doc) for doc in tqdm(global_combined_documents, ncols=80)]
+
+    for numTopics in range(5, 15):
+        lda_model = models.ldamodel.LdaModel(
+            corpus=bow_corpus,
+            id2word=dictionary,
+            num_topics=numTopics,
+            random_state=100,
+            update_every=1,
+            chunksize=200,
+            passes=20,
+            alpha='auto',
+            iterations=1_000,
+            per_word_topics=True
+        )
+
+        coherence_model = models.CoherenceModel(model=lda_model, texts=global_combined_documents, dictionary=dictionary, coherence='c_v')
+        print("Topics", numTopics, "Coherence Score:", coherence_model.get_coherence())
+
+
+    # Visualize topics for individual speakers
+    # for (period, speaker), documents in global_speaker_documents.items():
+    #     speaker_bow_corpus = [dictionary.doc2bow(doc) for doc in documents]
+    #     vis = pyLDAvis.gensim_models.prepare(lda_model, speaker_bow_corpus, dictionary=lda_model.id2word, mds='tsne')
+    #     pyLDAvis.save_html(vis, f'LDA_{period}_{speaker}.html')
+
+
+    # Get topic distributions for each speaker
+    # for (period, speaker), documents in global_speaker_documents.items():
+    #     speaker_bow_corpus = [dictionary.doc2bow(doc) for doc in documents]
+    #     topic_distribution = lda_model.get_document_topics(speaker_bow_corpus, minimum_probability=0.0)
+    #     avg_topic_distribution = np.mean([[topic[1] for topic in doc] for doc in topic_distribution], axis=0)
+    #     print(f"Period: {period}, Speaker: {speaker}, Topic Distribution: {avg_topic_distribution}")
+
+
+
     return None
 
 
@@ -132,7 +343,7 @@ def ensembleTopicModelling(numTopics:int, stopwords:set, iterations:int = 2_000)
 
         tokenTbl: pd.DataFrame = concatTables(df)
 
-        tokenTbl = tokenTbl[~tokenTbl['TOKEN'].isin(stopwords | set(punctuation))]
+        tokenTbl = tokenTbl[~tokenTbl['TOKEN'].isin(stopwords)]
         tokenTbl = tokenTbl[tokenTbl['POS'].isin(['NOUN', 'PROPN'])]  # use only nouns
 
         tokenTbl = tokenTbl[['TEXT_ID', 'ID', 'SENTENCE_ID', 'TOKEN_ID', 'TOKEN', 'LEMMA']]
@@ -233,34 +444,27 @@ def authorTopicModelling(numTopics:int) -> None:
     return None
 
 
-def filterTokens(tokenTbl:pd.DataFrame) -> list[str]:
-    from string import punctuation
-    punctuation = set(punctuation)
-    punctuation |= {'--', '...', r'\u2013', r'\u2014', 'dr.', '–', 'mr', 'hi', 'mr.', 'cheer', 'applause', 'sir', 'cheers'}
+def filterTokens(tokenTbl:pd.DataFrame, stowords:Iterable) -> list[str]:
 
-    tokenTbl = tokenTbl[~tokenTbl['TOKEN'].isin(stopwords | punctuation)]
+    tokenTbl = tokenTbl[~tokenTbl['TOKEN'].isin(stopwords)]
     tokenTbl = tokenTbl[tokenTbl['POS'].isin(['NOUN', 'PROPN'])]  # use only nouns
 
     return tokenTbl['LEMMA'].tolist()
 
 
-def trainBigrams():
-
-    def joinFunc(iterable:Iterable) -> str:
-        
-        return list(iterable)
+def trainBigrams(stopwords:Iterable, save: bool = False, analyze: bool = False) -> None:
 
     metadataDF: pd.DataFrame = loadMetadata()
     sentences = []
 
-    for speaker in metadataDF['speaker'].unique():
+    for speaker in tqdm(metadataDF['speaker'].unique(), total=len(metadataDF['speaker'].unique()), ncols=80, desc='Loading data'):
 
         ## data access & preprocessing
         df = metadataDF[metadataDF['speaker'] == speaker]
 
         tokenTbl: pd.DataFrame = concatTables(df)
 
-        tokenTbl = tokenTbl[~tokenTbl['TOKEN'].isin(stopwords | set(punctuation))]
+        tokenTbl = tokenTbl[~tokenTbl['TOKEN'].isin(stopwords)]
         tokenTbl = tokenTbl[tokenTbl['POS'].isin(['NOUN', 'PROPN'])]  # use only nouns
 
         tokenTbl = tokenTbl[['TEXT_ID', 'ID', 'SENTENCE_ID', 'TOKEN_ID', 'TOKEN', 'LEMMA']]
@@ -268,45 +472,59 @@ def trainBigrams():
         tokenTbl.sort_values(by=['TEXT_ID', 'ID'])
 
         tokenTbl['LEMMA'] = tokenTbl['LEMMA'].str.lower()
-        documents = tokenTbl[['TEXT_ID', 'SENTENCE_ID', 'LEMMA']].groupby(['TEXT_ID', 'SENTENCE_ID']).agg({'LEMMA': joinFunc})
+        documents = tokenTbl[['TEXT_ID', 'SENTENCE_ID', 'LEMMA']].groupby(['TEXT_ID', 'SENTENCE_ID']).agg({'LEMMA': list})
 
         sentences.extend(documents['LEMMA'].values)
 
 
     bigramPhrases = models.Phrases(sentences,
-                                   min_count=9,
-                                   threshold=80,)
+                                   min_count=30,
+                                   threshold=85,)
     trigramPhrases = models.Phrases(bigramPhrases[sentences],
-                                   min_count=12,
-                                   threshold=90,)
+                                   min_count=20,
+                                   threshold=95,)
     
     bigram = models.phrases.Phraser(bigramPhrases)
-    bigram.save(str(Path('analysis/topicModelling/bigram.model')))
-    
     trigram = models.phrases.Phraser(trigramPhrases)
-    trigram.save(str(Path('analysis/topicModelling/trigram.model')))
 
 
-    # Analyse result
-    dataBigrams = [bigram[doc] for doc in sentences]
-    dataTrigrams = [trigram[doc] for doc in dataBigrams]
+    if save:
+        trigram.save(str(Path('analysis/topicModelling/trigram.model')))
+        bigram.save(str(Path('analysis/topicModelling/bigram.model')))
 
-    foundBigrams = [word for sentence in dataBigrams for word in sentence if '_' in word]
-    for bi in foundBigrams[:20]:
-        print(bi)
-    print()
-
-    import re
-    pattern = re.compile(r'.+_.+_.+')
-    foundTrigrams = [word for sentence in dataTrigrams for word in sentence if '_' in word]
-    for tri in set(foundTrigrams):
-        if pattern.match(tri):
-            print(tri)
+    if analyze:
+        analyzeNGrams([bigram, trigram], sentences)
 
     return None
 
 
-def getTopicWords(lda, numWords=10) -> pd.DataFrame:
+def analyzeNGrams(models:list[models.Phrases], sentences: list[str], n_most: int = 20) -> None:
+    nameSuffixes = ['Bi', 'Tri', 'Four', 'Five', 'Six', 'Seven']
+
+    nGramNames = [f'{suffix}gram' for suffix in nameSuffixes[:len(models)]]
+    nGramPattern = {name: re.compile(fr'.+{"_.+" * i}') for i, name in enumerate(nGramNames, 1)}
+    result = []
+
+    for model, (name, pattern) in zip(models, nGramPattern.items()):
+        dataNGram = [model[doc] for doc in sentences]
+        nGrams = [word for sentence in dataNGram for word in sentence if pattern.match(word)]
+        sentences = dataNGram
+
+        counter = Counter(nGrams)
+        result.append(f'Found {len(counter)} {name}, {n_most} most frequent:')
+        for value, count in counter.most_common(n_most):
+            result.append(f' - {value:<20} - {count:>4}')
+        result.append('\n')
+    
+    result = '\n'.join(result)
+    print(result)
+    with open(Path('analysis/topicModelling/NGramExamples.txt'), 'w') as f:
+        f.write(result)
+
+    return None
+
+        
+def getTopicWords(lda, numWords: int = 10) -> pd.DataFrame:
     df = pd.DataFrame(columns=['Topic'] + [f'Word{i:02d}' for i in range(numWords)])
 
     for topic in lda.show_topics(numWords):
@@ -318,13 +536,14 @@ def getTopicWords(lda, numWords=10) -> pd.DataFrame:
     return df
 
 
-def getStopwords() -> set:
+def getStopwords() -> set[str]:
 
     from string import punctuation
     from gensim.parsing.preprocessing import STOPWORDS
 
     punctuation = set(punctuation)
-    punctuation |= {'--', '...', r'\u2013', r'\u2014', 'dr.', '–', 'mr', 'hi', 'mr.', 'cheer', 'applause', 'sir'}
+    punctuation |= {'--', '...', r'\u2013', r'\u2014', 'dr.', '–', 'mr', 'hi', 'mr.', 'cheer', 'applause', 'sir', 'laughter',
+                    'audience', 'boo', 'booo', 'laughs', '--audience'}
     stopwords = STOPWORDS | punctuation
 
     return stopwords
@@ -353,18 +572,20 @@ def guessTopicName() -> None:
 
 
 
+
+
+
 if __name__ == '__main__':
 
+    numTopics = 10  # maybe less
     stopwords = getStopwords()
 
 
-    numTopics = 7  # maybe less
-    # ideas: use only lowercase, remove candidate names
-
-    # trainBigrams()
-    # topicModelling(numTopics, stopwords, withNGrams=True, show=True)
+    # trainBigrams(stopwords, analyze=True, save=False)
+    # topicModellingPerSpeaker(numTopics, stopwords)
+    topicModellingPerPeriod2(numTopics, stopwords, LOAD=True)
     # authorTopicModelling(numTopics)
 
-    # ensembleTopicModelling(numTopics, stopwords | set(punctuation))
+    # ensembleTopicModelling(numTopics)
 
-    guessTopicName()
+    # guessTopicName()  # experimental!
