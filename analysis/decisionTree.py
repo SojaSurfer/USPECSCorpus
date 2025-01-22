@@ -67,13 +67,8 @@ def renderDecisionTree(tree, y) -> None:
 
 
 def trainTreeClassifier(df:pd.DataFrame) -> sklearn.tree.DecisionTreeClassifier:
-
-
-    
-
-
-
     return treeClf
+
 
 
 if __name__ == '__main__':

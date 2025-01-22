@@ -21,6 +21,16 @@ traceback.install()
 from analysis import loadMetadata, concatTables, getSentences, concatTexts
 
 
+COLOR_MAP = {
+    'Barack Obama': 'blue',
+    'John McCain': 'red',
+    'Mitt Romney': 'red',
+    'Hillary Clinton': 'blue',
+    'Donald J. Trump (1st Term)': 'red',
+    'Joseph R. Biden, Jr.': 'blue',
+    'Kamala Harris': 'blue'
+}
+
 
 # analyze topics - main topics for each document in the collection
 def analyse_topics(ldamodel, corpus, text) -> tuple[dict, ...]:
@@ -499,7 +509,7 @@ def authorTopicModelling(numTopics:int, stopwords:list[str], LOAD: bool = False)
     return None
 
 
-def authorTopicModellingPeriod(numTopics:int, stopwords:set[str]) -> None:
+def authorTopicModellingPeriod(numTopics:int, stopwords:set[str], save:bool = False) -> None:
     
     path = Path('corpus/tables')
     savepath = Path('analysis/topicModelling/topicsPerPeriod')
@@ -510,7 +520,9 @@ def authorTopicModellingPeriod(numTopics:int, stopwords:set[str]) -> None:
 
     metadataDF = loadMetadata()
 
-    extendedStopwords = {'comment', 'self', 'brown', 'lot', 'story', 'tonight', 'nomination', 'nominee', 'page', 'comment'}
+    extendedStopwords = {'comment', 'self', 'brown', 'lot', 'story', 'tonight', 'nomination', 'nominee', 
+                         'page', 'comment', 'desk', 'door', 'walz', 'michelle'
+                         }
 
     for period in metadataDF['period'].unique():
         periodDF = metadataDF[metadataDF['period'] == period]
@@ -551,20 +563,22 @@ def authorTopicModellingPeriod(numTopics:int, stopwords:set[str]) -> None:
 
 
         c_v = 0.0
-        while c_v < 0.45:
+        while c_v < 0.25:
             model, c_v, resultString = trainAuthorTopicModel(corpus, dictionary, author2doc, texts, numTopics)
-            print(f'{c_v=}')
-
-
-        model.save(str(savepathPeriod / f'AuthorTopicModel_period{period}.model'))
-
-        with open(savepathPeriod / f'AuthorTopicModel_period{period}.txt', 'w') as f:
-            f.write(resultString)
+            # print(f'{c_v=}')
+            print(resultString)
 
         fig = plotBarChart(model, period)
-        fig.write_image(str(savepathPeriod / f'AuthorTopicModel_period{period}.png'), height=800, width=1200)
+        if save:
+            model.save(str(savepathPeriod / f'AuthorTopicModel_period{period}.model'))
 
+            with open(savepathPeriod / f'AuthorTopicModel_period{period}.txt', 'w') as f:
+                f.write(resultString)
 
+            fig.write_image(str(savepathPeriod / f'AuthorTopicModel_period{period}.png'), height=800, width=1200)
+        else:
+            fig.show()
+        break
     # Step 5: Examine a specific topic
     # Get the top words for topic 0
     # print("Top words for topic 0:")
@@ -579,7 +593,7 @@ def trainAuthorTopicModel(corpus, dictionary, author2doc, texts, numTopics) -> t
         author2doc=author2doc,
         update_every=1,
         chunksize=100,
-        iterations=500,
+        iterations=10_000,
         passes=30,
         alpha=0.55,
         eta=0.1,
@@ -604,8 +618,18 @@ def plotBarChart(model, period):
             df.loc[len(df)] = [author, *topic]
         
     df['relPercentage'] = df['percentage'] / df['speaker'].nunique()
-    fig = px.bar(df, 'topic', 'relPercentage', color='speaker', range_y=(0,1), color_discrete_sequence=['red', 'blue'],
+    fig = px.bar(df, 'topic', 'relPercentage', color='speaker', range_y=(0,1), color_discrete_map=COLOR_MAP,
              title=f'Topic Distribution Election Period {period}')
+
+    fig.update_layout(
+        legend=dict(
+            orientation='h',
+            yanchor='bottom',
+            y=1.02,
+            xanchor='center',
+            x=0.5
+        )
+    )
 
     return fig
 
@@ -800,7 +824,7 @@ if __name__ == '__main__':
     # topicModellingPerSpeaker(numTopics, stopwords)
     # topicModellingPerPeriod2(numTopics, stopwords, LOAD=True)
     # authorTopicModelling(numTopics, stopwords, LOAD=False)
-    authorTopicModellingPeriod(numTopics, stopwords)
+    # authorTopicModellingPeriod(numTopics, stopwords)
 
     # ensembleTopicModelling(numTopics)
 

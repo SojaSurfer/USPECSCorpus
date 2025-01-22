@@ -121,8 +121,9 @@ class Plotter():
         )
 
         fig.update_traces(textinfo='label+value',
-                        insidetextorientation='horizontal',
+                        insidetextorientation='radial',
                         rotation=90,
+                        textfont=dict(size=18)
         )
         
         fig.update_layout(title={'text': 'Speeches per Candidate',
@@ -219,4 +220,5 @@ if __name__ == '__main__':
 
     plotter = Plotter()
 
-    plotter.plotAll()
+    # plotter.plotAll()
+    plotter.plotSpeechesPerCandidate(show=False)
